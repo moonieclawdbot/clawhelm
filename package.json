@@ -1,12 +1,12 @@
 {
-  "name": "@blockrun/clawrouter",
+  "name": "@moonieclawdbot/clawhelm",
   "version": "0.10.4",
-  "description": "Smart LLM router — save 92% on inference costs. 41 models, one wallet, x402 micropayments.",
+  "description": "Task-aware routing for OpenClaw using local classification and configured models.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "clawrouter": "./dist/cli.js"
+    "clawhelm": "./dist/cli.js"
   },
   "openclaw": {
     "extensions": [
@@ -50,9 +50,7 @@
     "smart-routing",
     "ai",
     "openclaw",
-    "blockrun",
-    "x402",
-    "usdc",
+    "clawhelm",
     "cost-optimization",
     "openai",
     "anthropic",
@@ -61,11 +59,11 @@
     "usdc-hackathon-winner",
     "agentic-commerce"
   ],
-  "author": "BlockRun <hello@blockrun.ai>",
+  "author": "moonieclawdbot",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BlockRunAI/ClawRouter.git"
+    "url": "git+https://github.com/moonieclawdbot/clawhelm.git"
   },
   "dependencies": {
     "viem": "^2.39.3"
