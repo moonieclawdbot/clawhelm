@@ -24,7 +24,7 @@ describe("plugin register model source", () => {
       config: {
         models: {
           providers: {
-            blockrun: {
+            clawhelm: {
               baseUrl: "http://127.0.0.1:8402/v1",
               api: "openai-completions",
               models: configuredModels,
@@ -50,7 +50,7 @@ describe("plugin register model source", () => {
 
     await plugin.register?.(api);
 
-    const models = api.config.models?.providers?.blockrun?.models;
+    const models = api.config.models?.providers?.clawhelm?.models;
     expect(models).toBe(configuredModels);
     expect(models?.[0]?.id).toBe("custom/configured-model");
   });

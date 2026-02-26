@@ -18,7 +18,7 @@
  */
 
 import type { OpenClawPluginDefinition, OpenClawPluginApi } from "./types.js";
-import { blockrunProvider } from "./provider.js";
+import { clawhelmProvider } from "./provider.js";
 import { getProxyPort } from "./proxy.js";
 import type { RoutingConfig } from "./router/index.js";
 
@@ -400,12 +400,12 @@ const plugin: OpenClawPluginDefinition = {
     // Skip heavy initialization in completion mode — only completion script is needed
     // Logging to stdout during completion pollutes the script and causes zsh errors
     if (isCompletionMode()) {
-      api.registerProvider(blockrunProvider);
+      api.registerProvider(clawhelmProvider);
       return;
     }
 
     // Register BlockRun as a provider (sync — available immediately)
-    api.registerProvider(blockrunProvider);
+    api.registerProvider(clawhelmProvider);
 
     // Inject dummy auth profiles into agent auth stores
     // OpenClaw's agent system looks for auth even if provider has auth: []
@@ -434,7 +434,7 @@ export default plugin;
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
 export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
-export { blockrunProvider } from "./provider.js";
+export { clawhelmProvider, blockrunProvider } from "./provider.js";
 export {
   OPENCLAW_MODELS,
   BLOCKRUN_MODELS,
