@@ -614,9 +614,9 @@ async function createWalletCommand(): Promise<OpenClawPluginCommandDefinition> {
 }
 
 const plugin: OpenClawPluginDefinition = {
-  id: "clawrouter",
-  name: "ClawRouter",
-  description: "Smart LLM router — 30+ models, x402 micropayments, 78% cost savings",
+  id: "clawhelm",
+  name: "ClawHelm",
+  description: "Task-aware routing for OpenClaw using local classification and configured models",
   version: VERSION,
 
   async register(api: OpenClawPluginApi) {
