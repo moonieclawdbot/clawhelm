@@ -1,25 +1,63 @@
 {
-  "id": "clawrouter",
-  "name": "ClawRouter",
-  "description": "Smart LLM router — 30+ models, x402 micropayments, 78% cost savings",
+  "id": "clawhelm",
+  "name": "ClawHelm",
+  "description": "Local task classification router for OpenClaw-configured models",
   "configSchema": {
     "type": "object",
     "properties": {
-      "walletKey": {
-        "type": "string",
-        "description": "EVM wallet private key (0x...). Optional — auto-generated if not set."
-      },
       "routing": {
         "type": "object",
-        "description": "Override default routing configuration"
+        "description": "Routing/classification overrides. All model IDs must exist in OpenClaw model config.",
+        "properties": {
+          "classifier": {
+            "type": "object",
+            "properties": {
+              "llmModel": {
+                "type": "string",
+                "description": "Model used for classifier fallback when rule scoring is ambiguous"
+              },
+              "llmMaxTokens": { "type": "number" },
+              "llmTemperature": { "type": "number" },
+              "promptTruncationChars": { "type": "number" },
+              "cacheTtlMs": { "type": "number" }
+            }
+          },
+          "tiers": {
+            "type": "object",
+            "description": "Example mapping: simple->free chat model, medium->gpt-5.1-codex, complex/reasoning->gpt-5.3-codex",
+            "properties": {
+              "SIMPLE": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "MEDIUM": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "COMPLEX": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "REASONING": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
       }
-    }
-  },
-  "uiHints": {
-    "walletKey": {
-      "label": "Wallet Private Key",
-      "sensitive": true,
-      "placeholder": "0x... (optional — auto-generated)"
     }
   }
 }

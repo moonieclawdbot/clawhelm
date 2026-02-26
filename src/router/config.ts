@@ -13,7 +13,8 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   version: "2.0",
 
   classifier: {
-    llmModel: "google/gemini-2.5-flash",
+    // Uses an OpenClaw-configured model as classifier (override in plugin config)
+    llmModel: "openai/gpt-oss-120b",
     llmMaxTokens: 10,
     llmTemperature: 0,
     promptTruncationChars: 500,
@@ -633,44 +634,23 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     confidenceThreshold: 0.7,
   },
 
-  // Auto (balanced) tier configs - current default smart routing
+  // Default tier configs (examples). Override from plugin config in openclaw.json.
   tiers: {
     SIMPLE: {
-      primary: "moonshot/kimi-k2.5", // $0.60/$3.00 - best quality/price for simple tasks
-      fallback: [
-        "google/gemini-2.5-flash-lite", // 1M context, ultra cheap ($0.10/$0.40)
-        "nvidia/gpt-oss-120b", // FREE fallback
-        "deepseek/deepseek-chat",
-      ],
+      primary: "openai/gpt-oss-120b",
+      fallback: ["openai/gpt-4o-mini"],
     },
     MEDIUM: {
-      primary: "xai/grok-code-fast-1", // Code specialist, $0.20/$1.50
-      fallback: [
-        "google/gemini-2.5-flash-lite", // 1M context, ultra cheap ($0.10/$0.40)
-        "deepseek/deepseek-chat",
-        "xai/grok-4-1-fast-non-reasoning", // Upgraded Grok 4.1
-      ],
+      primary: "openai/gpt-5.1-codex",
+      fallback: ["openai/gpt-4o"],
     },
     COMPLEX: {
-      primary: "google/gemini-3.1-pro-preview", // Newest Gemini 3.1 - upgraded from 3.0
-      fallback: [
-        "google/gemini-2.5-flash-lite", // CRITICAL: 1M context, ultra-cheap failsafe ($0.10/$0.40)
-        "google/gemini-3-pro-preview", // 3.0 fallback
-        "google/gemini-2.5-pro",
-        "deepseek/deepseek-chat",
-        "xai/grok-4-0709",
-        "openai/gpt-5.2", // Newer and cheaper input than gpt-4o
-        "openai/gpt-4o",
-        "anthropic/claude-sonnet-4.6",
-      ],
+      primary: "openai/gpt-5.3-codex",
+      fallback: ["openai/gpt-5.1-codex", "openai/gpt-4o"],
     },
     REASONING: {
-      primary: "xai/grok-4-1-fast-reasoning", // Upgraded Grok 4.1 reasoning $0.20/$0.50
-      fallback: [
-        "deepseek/deepseek-reasoner", // Cheap reasoning model
-        "openai/o4-mini", // Newer and cheaper than o3 ($1.10 vs $2.00)
-        "openai/o3",
-      ],
+      primary: "openai/gpt-5.3-codex",
+      fallback: ["openai/o3", "openai/gpt-5.1-codex"],
     },
   },
 
