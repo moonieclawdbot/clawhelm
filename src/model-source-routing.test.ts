@@ -65,4 +65,15 @@ describe("configured model source routing", () => {
 
     expect(modelPricing.has("custom/reasoner")).toBe(true);
   });
+
+  it("uses OpenClaw fallback model pricing when configured model source is missing", () => {
+    const modelPricing = buildModelPricing(undefined, "openai/gpt-4o-mini");
+    expect(modelPricing.has("openai/gpt-4o-mini")).toBe(true);
+  });
+
+  it("throws when neither configured models nor OpenClaw fallback model exist", () => {
+    expect(() => buildModelPricing()).toThrow(
+      "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
+    );
+  });
 });

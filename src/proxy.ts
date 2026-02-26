@@ -39,7 +39,6 @@ import {
 } from "./router/index.js";
 import {
   BLOCKRUN_MODELS,
-  OPENCLAW_MODELS,
   resolveModelAlias,
   getModelContextWindow,
   isReasoningModel,
@@ -817,6 +816,8 @@ export type ProxyOptions = {
   routingConfig?: Partial<RoutingConfig>;
   /** Optional OpenClaw-configured models source (used for model list + pricing). */
   configuredModels?: ModelDefinitionConfig[];
+  /** OpenClaw fallback model id used when no configured model source is available. */
+  openclawFallbackModel?: string;
   /** Request timeout in ms (default: 180000 = 3 minutes). Covers on-chain tx + LLM response. */
   requestTimeoutMs?: number;
   /** Skip balance checks (for testing only). Default: false */
@@ -865,10 +866,12 @@ export type ProxyHandle = {
 
 /**
  * Build model pricing map from configured OpenClaw models.
- * Falls back to built-in BLOCKRUN_MODELS when no configured source is provided.
+ * If no configured source exists, use OpenClaw fallback model when provided.
+ * Otherwise throw so caller can surface a clear user-facing configuration error.
  */
 export function buildModelPricing(
   configuredModels?: ModelDefinitionConfig[],
+  openclawFallbackModel?: string,
 ): Map<string, ModelPricing> {
   const map = new Map<string, ModelPricing>();
 
@@ -884,11 +887,15 @@ export function buildModelPricing(
     return map;
   }
 
-  for (const m of BLOCKRUN_MODELS) {
-    if (m.id === AUTO_MODEL) continue; // skip meta-model
-    map.set(m.id, { inputPrice: m.inputPrice, outputPrice: m.outputPrice });
+  if (openclawFallbackModel) {
+    const normalizedFallback = openclawFallbackModel.replace(/^blockrun\//, "");
+    map.set(normalizedFallback, { inputPrice: 0, outputPrice: 0 });
+    return map;
   }
-  return map;
+
+  throw new Error(
+    "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
+  );
 }
 
 type ModelListEntry = {
@@ -905,9 +912,28 @@ type ModelListEntry = {
 export function buildProxyModelList(
   createdAt: number = Math.floor(Date.now() / 1000),
   configuredModels?: ModelDefinitionConfig[],
+  openclawFallbackModel?: string,
 ): ModelListEntry[] {
   const seen = new Set<string>();
-  const sourceModels = configuredModels && configuredModels.length > 0 ? configuredModels : OPENCLAW_MODELS;
+  const sourceModels =
+    configuredModels && configuredModels.length > 0
+      ? configuredModels
+      : openclawFallbackModel
+        ? ([
+            {
+              id: openclawFallbackModel,
+              name: openclawFallbackModel,
+              reasoning: false,
+              input: ["text"],
+              contextWindow: 128000,
+              maxTokens: 4096,
+            } satisfies ModelDefinitionConfig,
+          ] as ModelDefinitionConfig[])
+        : (() => {
+            throw new Error(
+              "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
+            );
+          })();
 
   return sourceModels
     .filter((model) => {
@@ -1015,7 +1041,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
   // Build router options (100% local — no external API calls for routing)
   const routingConfig = mergeRoutingConfig(options.routingConfig);
-  const modelPricing = buildModelPricing(options.configuredModels);
+  const modelPricing = buildModelPricing(options.configuredModels, options.openclawFallbackModel);
   const routerOpts: RouterOptions = {
     config: routingConfig,
     modelPricing,
@@ -1126,7 +1152,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
     // --- Handle /v1/models locally (no upstream call needed) ---
     if (req.url === "/v1/models" && req.method === "GET") {
-      const models = buildProxyModelList(undefined, options.configuredModels);
+      const models = buildProxyModelList(undefined, options.configuredModels, options.openclawFallbackModel);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ object: "list", data: models }));
       return;
