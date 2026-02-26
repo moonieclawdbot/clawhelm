@@ -407,31 +407,21 @@ const plugin: OpenClawPluginDefinition = {
     // Register BlockRun as a provider (sync — available immediately)
     api.registerProvider(blockrunProvider);
 
-    // Inject models config into OpenClaw config file
-    // This persists the config so models are recognized on restart
-    injectModelsConfig(api.logger);
-
     // Inject dummy auth profiles into agent auth stores
     // OpenClaw's agent system looks for auth even if provider has auth: []
     injectAuthProfile(api.logger);
 
-    // Also set runtime config for immediate availability
-    const runtimePort = getProxyPort();
-    if (!api.config.models) {
-      api.config.models = { providers: {} };
-    }
-    if (!api.config.models.providers) {
-      api.config.models.providers = {};
-    }
-    api.config.models.providers.blockrun = {
-      baseUrl: `http://127.0.0.1:${runtimePort}/v1`,
-      api: "openai-completions",
-      // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-      apiKey: "x402-proxy-handles-auth",
-      models: OPENCLAW_MODELS,
-    };
+    const configuredModelCount =
+      api.config.models?.providers?.blockrun?.models &&
+      Array.isArray(api.config.models.providers.blockrun.models)
+        ? api.config.models.providers.blockrun.models.length
+        : 0;
 
-    api.logger.info("BlockRun provider registered (30+ models via x402)");
+    api.logger.info(
+      configuredModelCount > 0
+        ? `BlockRun provider registered (using ${configuredModelCount} OpenClaw-configured models)`
+        : "BlockRun provider registered (no OpenClaw-configured models detected)",
+    );
 
     // Runtime wallet/proxy bootstrap removed from ClawHelm.
     // Next subtasks will complete full BlockRun/x402 transport decoupling.
