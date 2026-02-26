@@ -29,9 +29,9 @@ export function getActiveProxy(): ProxyHandle | null {
 /**
  * BlockRun provider plugin definition.
  */
-export const blockrunProvider: ProviderPlugin = {
-  id: "blockrun",
-  label: "BlockRun",
+export const clawhelmProvider: ProviderPlugin = {
+  id: "clawhelm",
+  label: "ClawHelm",
   docsPath: "https://blockrun.ai/docs",
   aliases: ["br"],
   envVars: ["BLOCKRUN_WALLET_KEY"],
@@ -51,3 +51,7 @@ export const blockrunProvider: ProviderPlugin = {
   // ~/.openclaw/blockrun/wallet.key. Users just fund that wallet with USDC.
   auth: [],
 };
+
+
+// Backward compatibility alias during migration
+export const blockrunProvider = clawhelmProvider;

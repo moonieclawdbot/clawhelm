@@ -39,7 +39,6 @@ import {
 } from "./router/index.js";
 import {
   BLOCKRUN_MODELS,
-  OPENCLAW_MODELS,
   resolveModelAlias,
   getModelContextWindow,
   isReasoningModel,
@@ -58,6 +57,7 @@ import { SessionStore, getSessionId, type SessionConfig } from "./session.js";
 import { checkForUpdates } from "./updater.js";
 import { PROXY_PORT } from "./config.js";
 import { SessionJournal } from "./journal.js";
+import type { ModelDefinitionConfig } from "./types.js";
 
 const BLOCKRUN_API = "https://blockrun.ai/api";
 // Routing profile models - virtual models that trigger intelligent routing
@@ -814,6 +814,10 @@ export type ProxyOptions = {
   /** Port to listen on (default: 8402) */
   port?: number;
   routingConfig?: Partial<RoutingConfig>;
+  /** Optional OpenClaw-configured models source (used for model list + pricing). */
+  configuredModels?: ModelDefinitionConfig[];
+  /** OpenClaw fallback model id used when no configured model source is available. */
+  openclawFallbackModel?: string;
   /** Request timeout in ms (default: 180000 = 3 minutes). Covers on-chain tx + LLM response. */
   requestTimeoutMs?: number;
   /** Skip balance checks (for testing only). Default: false */
@@ -861,15 +865,37 @@ export type ProxyHandle = {
 };
 
 /**
- * Build model pricing map from BLOCKRUN_MODELS.
+ * Build model pricing map from configured OpenClaw models.
+ * If no configured source exists, use OpenClaw fallback model when provided.
+ * Otherwise throw so caller can surface a clear user-facing configuration error.
  */
-function buildModelPricing(): Map<string, ModelPricing> {
+export function buildModelPricing(
+  configuredModels?: ModelDefinitionConfig[],
+  openclawFallbackModel?: string,
+): Map<string, ModelPricing> {
   const map = new Map<string, ModelPricing>();
-  for (const m of BLOCKRUN_MODELS) {
-    if (m.id === AUTO_MODEL) continue; // skip meta-model
-    map.set(m.id, { inputPrice: m.inputPrice, outputPrice: m.outputPrice });
+
+  if (configuredModels && configuredModels.length > 0) {
+    for (const m of configuredModels) {
+      const normalizedId = m.id.replace(/^blockrun\//, "");
+      if (normalizedId === "auto") continue; // skip meta-model
+      map.set(normalizedId, {
+        inputPrice: m.cost?.input ?? 0,
+        outputPrice: m.cost?.output ?? 0,
+      });
+    }
+    return map;
   }
-  return map;
+
+  if (openclawFallbackModel) {
+    const normalizedFallback = openclawFallbackModel.replace(/^blockrun\//, "");
+    map.set(normalizedFallback, { inputPrice: 0, outputPrice: 0 });
+    return map;
+  }
+
+  throw new Error(
+    "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
+  );
 }
 
 type ModelListEntry = {
@@ -885,18 +911,42 @@ type ModelListEntry = {
  */
 export function buildProxyModelList(
   createdAt: number = Math.floor(Date.now() / 1000),
+  configuredModels?: ModelDefinitionConfig[],
+  openclawFallbackModel?: string,
 ): ModelListEntry[] {
   const seen = new Set<string>();
-  return OPENCLAW_MODELS.filter((model) => {
-    if (seen.has(model.id)) return false;
-    seen.add(model.id);
-    return true;
-  }).map((model) => ({
-    id: model.id,
-    object: "model",
-    created: createdAt,
-    owned_by: model.id.includes("/") ? (model.id.split("/")[0] ?? "blockrun") : "blockrun",
-  }));
+  const sourceModels =
+    configuredModels && configuredModels.length > 0
+      ? configuredModels
+      : openclawFallbackModel
+        ? ([
+            {
+              id: openclawFallbackModel,
+              name: openclawFallbackModel,
+              reasoning: false,
+              input: ["text"],
+              contextWindow: 128000,
+              maxTokens: 4096,
+            } satisfies ModelDefinitionConfig,
+          ] as ModelDefinitionConfig[])
+        : (() => {
+            throw new Error(
+              "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
+            );
+          })();
+
+  return sourceModels
+    .filter((model) => {
+      if (seen.has(model.id)) return false;
+      seen.add(model.id);
+      return true;
+    })
+    .map((model) => ({
+      id: model.id,
+      object: "model",
+      created: createdAt,
+      owned_by: model.id.includes("/") ? (model.id.split("/")[0] ?? "blockrun") : "blockrun",
+    }));
 }
 
 /**
@@ -991,7 +1041,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
   // Build router options (100% local — no external API calls for routing)
   const routingConfig = mergeRoutingConfig(options.routingConfig);
-  const modelPricing = buildModelPricing();
+  const modelPricing = buildModelPricing(options.configuredModels, options.openclawFallbackModel);
   const routerOpts: RouterOptions = {
     config: routingConfig,
     modelPricing,
@@ -1102,7 +1152,7 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
     // --- Handle /v1/models locally (no upstream call needed) ---
     if (req.url === "/v1/models" && req.method === "GET") {
-      const models = buildProxyModelList();
+      const models = buildProxyModelList(undefined, options.configuredModels, options.openclawFallbackModel);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ object: "list", data: models }));
       return;
