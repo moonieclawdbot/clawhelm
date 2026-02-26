@@ -18,29 +18,10 @@
  */
 
 import type { OpenClawPluginDefinition, OpenClawPluginApi } from "./types.js";
-import { blockrunProvider, setActiveProxy } from "./provider.js";
-import { startProxy, getProxyPort } from "./proxy.js";
-import { resolveOrGenerateWalletKey } from "./auth.js";
+import { blockrunProvider } from "./provider.js";
+import { getProxyPort } from "./proxy.js";
 import type { RoutingConfig } from "./router/index.js";
-import { BalanceMonitor } from "./balance.js";
 
-/**
- * Wait for proxy health check to pass (quick check, not RPC).
- * Returns true if healthy within timeout, false otherwise.
- */
-async function waitForProxyHealth(port: number, timeoutMs = 3000): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/health`);
-      if (res.ok) return true;
-    } catch {
-      // Proxy not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return false;
-}
 import { OPENCLAW_MODELS } from "./models.js";
 import {
   writeFileSync,
@@ -66,17 +47,6 @@ function isCompletionMode(): boolean {
   // Check for: openclaw completion --shell <shell>
   // argv[0] = node/bun, argv[1] = openclaw, argv[2] = completion
   return args.some((arg, i) => arg === "completion" && i >= 1 && i <= 3);
-}
-
-/**
- * Detect if we're running in gateway mode.
- * The proxy should ONLY start when the gateway is running.
- * During CLI commands (plugins, models, etc), the proxy keeps the process alive.
- */
-function isGatewayMode(): boolean {
-  const args = process.argv;
-  // Gateway mode is: openclaw gateway start/restart/stop
-  return args.includes("gateway");
 }
 
 /**
@@ -411,82 +381,6 @@ function injectAuthProfile(logger: { info: (msg: string) => void }): void {
   }
 }
 
-// Store active proxy handle for cleanup on gateway_stop
-let activeProxyHandle: Awaited<ReturnType<typeof startProxy>> | null = null;
-
-/**
- * Start the x402 proxy in the background.
- * Called from register() because OpenClaw's loader only invokes register(),
- * treating activate() as an alias (def.register ?? def.activate).
- */
-async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
-  // Resolve wallet key: saved file → env var → auto-generate
-  const { key: walletKey, address, source } = await resolveOrGenerateWalletKey();
-
-  // Log wallet source (brief - balance check happens after proxy starts)
-  if (source === "generated") {
-    api.logger.info(`Generated new wallet: ${address}`);
-  } else if (source === "saved") {
-    api.logger.info(`Using saved wallet: ${address}`);
-  } else {
-    api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
-  }
-
-  // Resolve routing config overrides from plugin config
-  const routingConfig = api.pluginConfig?.routing as Partial<RoutingConfig> | undefined;
-
-  const proxy = await startProxy({
-    walletKey,
-    routingConfig,
-    onReady: (port) => {
-      api.logger.info(`BlockRun x402 proxy listening on port ${port}`);
-    },
-    onError: (error) => {
-      api.logger.error(`BlockRun proxy error: ${error.message}`);
-    },
-    onRouted: (decision) => {
-      const cost = decision.costEstimate.toFixed(4);
-      const saved = (decision.savings * 100).toFixed(0);
-      api.logger.info(
-        `[${decision.tier}] ${decision.model} $${cost} (saved ${saved}%) | ${decision.reasoning}`,
-      );
-    },
-    onLowBalance: (info) => {
-      api.logger.warn(`[!] Low balance: ${info.balanceUSD}. Fund wallet: ${info.walletAddress}`);
-    },
-    onInsufficientFunds: (info) => {
-      api.logger.error(
-        `[!] Insufficient funds. Balance: ${info.balanceUSD}, Needed: ${info.requiredUSD}. Fund wallet: ${info.walletAddress}`,
-      );
-    },
-  });
-
-  setActiveProxy(proxy);
-  activeProxyHandle = proxy;
-
-  api.logger.info(`ClawRouter ready — smart routing enabled`);
-  api.logger.info(`Pricing: Simple ~$0.001 | Code ~$0.01 | Complex ~$0.05 | Free: $0`);
-
-  // Non-blocking balance check AFTER proxy is ready (won't hang startup)
-  const startupMonitor = new BalanceMonitor(address);
-  startupMonitor
-    .checkBalance()
-    .then((balance) => {
-      if (balance.isEmpty) {
-        api.logger.info(`Wallet: ${address} | Balance: $0.00`);
-        api.logger.info(`Using FREE model. Fund wallet for premium models.`);
-      } else if (balance.isLow) {
-        api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD} (low)`);
-      } else {
-        api.logger.info(`Wallet: ${address} | Balance: ${balance.balanceUSD}`);
-      }
-    })
-    .catch(() => {
-      // Silently continue - balance will be checked per-request anyway
-      api.logger.info(`Wallet: ${address} | Balance: (checking...)`);
-    });
-}
-
 const plugin: OpenClawPluginDefinition = {
   id: "clawhelm",
   name: "ClawHelm",
@@ -539,72 +433,9 @@ const plugin: OpenClawPluginDefinition = {
 
     api.logger.info("BlockRun provider registered (30+ models via x402)");
 
-    // Register a service with stop() for cleanup on gateway shutdown
-    // This prevents EADDRINUSE when the gateway restarts
-    api.registerService({
-      id: "clawrouter-proxy",
-      start: () => {
-        // No-op: proxy is started below in non-blocking mode
-      },
-      stop: async () => {
-        // Close proxy on gateway shutdown to release port 8402
-        if (activeProxyHandle) {
-          try {
-            await activeProxyHandle.close();
-            api.logger.info("BlockRun proxy closed");
-          } catch (err) {
-            api.logger.warn(
-              `Failed to close proxy: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-          activeProxyHandle = null;
-        }
-      },
-    });
-
-    // Skip proxy startup unless we're in gateway mode
-    // The proxy keeps the Node.js event loop alive, preventing CLI commands from exiting
-    // The proxy will start automatically when the gateway runs
-    if (!isGatewayMode()) {
-      // Generate wallet on first install (even outside gateway mode)
-      // This ensures users can see their wallet address immediately after install
-      resolveOrGenerateWalletKey()
-        .then(({ address, source }) => {
-          if (source === "generated") {
-            api.logger.info(`Generated new wallet: ${address}`);
-          } else if (source === "saved") {
-            api.logger.info(`Using saved wallet: ${address}`);
-          } else {
-            api.logger.info(`Using wallet from BLOCKRUN_WALLET_KEY: ${address}`);
-          }
-        })
-        .catch((err) => {
-          api.logger.warn(
-            `Failed to initialize wallet: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-      api.logger.info("Not in gateway mode — proxy will start when gateway runs");
-      return;
-    }
-
-    // Start x402 proxy in background WITHOUT blocking register()
-    // CRITICAL: Do NOT await here - this was blocking model selection UI for 3+ seconds
-    // causing Chandler's "infinite loop" issue where model selection never finishes
-    // Note: startProxyInBackground calls resolveOrGenerateWalletKey internally
-    startProxyInBackground(api)
-      .then(async () => {
-        // Proxy started successfully - verify health
-        const port = getProxyPort();
-        const healthy = await waitForProxyHealth(port, 5000);
-        if (!healthy) {
-          api.logger.warn(`Proxy health check timed out, commands may not work immediately`);
-        }
-      })
-      .catch((err) => {
-        api.logger.error(
-          `Failed to start BlockRun proxy: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+    // Runtime wallet/proxy bootstrap removed from ClawHelm.
+    // Next subtasks will complete full BlockRun/x402 transport decoupling.
+    api.logger.info("ClawHelm loaded without wallet/proxy runtime bootstrap");
   },
 };
 
