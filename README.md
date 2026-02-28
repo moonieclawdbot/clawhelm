@@ -1,16 +1,15 @@
 # ClawHelm
 
-ClawHelm is an **OpenClaw-native routing plugin**.
+ClawHelm is an **OpenClaw-native model routing plugin**.
 
-It classifies each prompt locally and routes by tier (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) to the cheapest/best model inside your configured model pool.
+It classifies each request into a task tier (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and then selects a model chain for that tier from your OpenClaw-configured models.
 
-## Architecture (final)
+## What ClawHelm does
 
-- No wallet/x402/payment flow
-- No proxy runtime
-- No provider-owned model catalog
-- Uses only models already configured in OpenClaw (`models.providers.clawhelm.models`)
-- Local classifier + rule-based selection
+- Routes requests by tier using local rule-based classification.
+- Supports optional routing profiles (`eco`, `premium`, `auto`) for cost/quality preference.
+- Uses only models already configured in OpenClaw (`models.providers.clawhelm.models`).
+- Supports an optional `routing.modelPool` allowlist to limit which configured models routing may choose.
 
 ## Install
 
@@ -36,7 +35,26 @@ Example (`openclaw.plugin.json` / plugin config):
 }
 ```
 
-`routing.modelPool` constrains all candidate models; tier chains are filtered to this pool and to available OpenClaw models.
+`routing.modelPool` is optional. When set, ClawHelm treats it as the allowed set of model IDs and constrains tier primary/fallback chains to models that are both:
+
+1. configured in OpenClaw
+2. present in `routing.modelPool`
+
+If `modelPool` is omitted, all configured ClawHelm provider models are eligible.
+
+## Validate plugin behavior
+
+```bash
+npm run test
+npm run typecheck
+npm run build
+```
+
+Key validations covered in tests:
+
+- local LLM classifier parsing/fallback/cache behavior
+- tier-to-model routing flow (default tier, profile tiers, agentic tiers)
+- `modelPool` constraints against configured model availability
 
 ## Development
 

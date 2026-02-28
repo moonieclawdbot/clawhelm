@@ -22,9 +22,14 @@
               "cacheTtlMs": { "type": "number" }
             }
           },
+          "modelPool": {
+            "type": "array",
+            "description": "Optional allowlist of model IDs. When set, ClawHelm only routes to models present in this list and in OpenClaw provider model config.",
+            "items": { "type": "string" }
+          },
           "tiers": {
             "type": "object",
-            "description": "Example mapping: simple->free chat model, medium->gpt-5.1-codex, complex/reasoning->gpt-5.3-codex",
+            "description": "Tier-to-model mapping: tasks are classified into tiers, and each tier selects from its configured primary/fallback chain.",
             "properties": {
               "SIMPLE": {
                 "type": "object",

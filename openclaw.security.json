@@ -2,12 +2,16 @@
   "$schema": "https://openclaw.ai/schemas/plugin-security.json",
   "version": "1.0",
   "plugin": "@moonieclawdbot/clawhelm",
-  "description": "Local classifier/routing plugin using OpenClaw-configured models only",
-  "expectedBehaviors": [],
+  "description": "Local tier-classification and model-selection plugin for OpenClaw-configured providers",
+  "expectedBehaviors": [
+    "Classifies prompts locally into SIMPLE, MEDIUM, COMPLEX, or REASONING tiers",
+    "Selects models from OpenClaw-configured provider model definitions",
+    "Applies optional routing.modelPool allowlist constraints to tier model chains"
+  ],
   "securityNotes": [
-    "ClawHelm does not require wallet keys or payment signing",
-    "ClawHelm does not start a local proxy runtime",
-    "Model credentials remain owned by OpenClaw provider configuration"
+    "Model credentials and provider auth stay in OpenClaw provider configuration",
+    "Routing decisions are computed locally from prompt metadata and routing config",
+    "No additional wallet, payment, or proxy service is required by ClawHelm"
   ],
   "references": [
     "https://github.com/moonieclawdbot/clawhelm"
