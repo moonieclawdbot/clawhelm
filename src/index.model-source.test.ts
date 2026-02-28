@@ -4,16 +4,28 @@ import plugin from "./index.js";
 import type { ModelDefinitionConfig, OpenClawPluginApi } from "./types.js";
 
 describe("plugin register model source", () => {
-  it("keeps OpenClaw-configured models unchanged", async () => {
-    const configuredModels: ModelDefinitionConfig[] = [
+  it("keeps OpenClaw models unchanged across providers", async () => {
+    const openaiModels: ModelDefinitionConfig[] = [
       {
-        id: "custom/configured-model",
-        name: "Configured",
+        id: "openai/gpt-4o-mini",
+        name: "GPT-4o mini",
         reasoning: false,
         input: ["text"],
         cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 32000,
         maxTokens: 4096,
+      },
+    ];
+
+    const anthropicModels: ModelDefinitionConfig[] = [
+      {
+        id: "anthropic/claude-sonnet-4.6",
+        name: "Claude Sonnet 4.6",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 8192,
       },
     ];
 
@@ -24,10 +36,15 @@ describe("plugin register model source", () => {
       config: {
         models: {
           providers: {
-            clawhelm: {
-              baseUrl: "http://127.0.0.1:8402/v1",
-              api: "openai-completions",
-              models: configuredModels,
+            openai: {
+              baseUrl: "https://api.openai.com/v1",
+              api: "openai-responses",
+              models: openaiModels,
+            },
+            anthropic: {
+              baseUrl: "https://api.anthropic.com/v1",
+              api: "anthropic-messages",
+              models: anthropicModels,
             },
           },
         },
@@ -50,8 +67,7 @@ describe("plugin register model source", () => {
 
     await plugin.register?.(api);
 
-    const models = api.config.models?.providers?.clawhelm?.models;
-    expect(models).toBe(configuredModels);
-    expect(models?.[0]?.id).toBe("custom/configured-model");
+    expect(api.config.models?.providers?.openai?.models).toBe(openaiModels);
+    expect(api.config.models?.providers?.anthropic?.models).toBe(anthropicModels);
   });
 });

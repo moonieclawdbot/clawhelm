@@ -50,7 +50,7 @@ describe("plugin register behavior", () => {
     writeFileSync(join(openclawDir, "openclaw.json"), JSON.stringify({ existing: true }));
 
     const api = makeApi({
-      models: { providers: { clawhelm: { baseUrl: "http://127.0.0.1:8402/v1", models: [] } } },
+      models: { providers: { openai: { baseUrl: "https://api.openai.com/v1", models: [] } } },
     });
 
     await plugin.register?.(api);
@@ -60,16 +60,16 @@ describe("plugin register behavior", () => {
     expect(readdirSync(openclawDir).sort()).toEqual(["openclaw.json"]);
   });
 
-  it("uses configured models from clawhelm provider for routing visibility logs", async () => {
+  it("counts OpenClaw models across all configured providers for visibility logs", async () => {
     const clawhelmApi = makeApi({
       models: {
         providers: {
-          clawhelm: {
-            baseUrl: "http://127.0.0.1:8402/v1",
+          openai: {
+            baseUrl: "https://api.openai.com/v1",
             models: [
               {
-                id: "custom/model",
-                name: "Custom",
+                id: "openai/gpt-4o-mini",
+                name: "GPT-4o mini",
                 reasoning: false,
                 input: ["text"],
                 cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
@@ -78,12 +78,26 @@ describe("plugin register behavior", () => {
               },
             ],
           },
+          anthropic: {
+            baseUrl: "https://api.anthropic.com/v1",
+            models: [
+              {
+                id: "anthropic/claude-sonnet-4.6",
+                name: "Claude Sonnet 4.6",
+                reasoning: true,
+                input: ["text"],
+                cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 200000,
+                maxTokens: 8192,
+              },
+            ],
+          },
         },
       },
     });
     await plugin.register?.(clawhelmApi);
     expect(clawhelmApi.logger.info).toHaveBeenCalledWith(
-      "ClawHelm provider registered (using 1 OpenClaw-configured models)",
+      "ClawHelm plugin registered (detected 2 OpenClaw models across models.providers.*.models)",
     );
   });
 });

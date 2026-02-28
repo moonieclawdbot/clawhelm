@@ -20,13 +20,16 @@ const plugin: OpenClawPluginDefinition = {
 
     api.registerProvider(clawhelmProvider);
 
-    const configuredModels = api.config.models?.providers?.clawhelm?.models;
-    const configuredModelCount = Array.isArray(configuredModels) ? configuredModels.length : 0;
+    const providers = api.config.models?.providers ?? {};
+    const configuredModelCount = Object.values(providers).reduce((count, provider) => {
+      const models = provider?.models;
+      return count + (Array.isArray(models) ? models.length : 0);
+    }, 0);
 
     api.logger.info(
       configuredModelCount > 0
-        ? `ClawHelm provider registered (using ${configuredModelCount} OpenClaw-configured models)`
-        : "ClawHelm provider registered (no OpenClaw-configured models detected)",
+        ? `ClawHelm plugin registered (detected ${configuredModelCount} OpenClaw models across models.providers.*.models)`
+        : "ClawHelm plugin registered (no OpenClaw models detected under models.providers.*.models)",
     );
   },
 };
