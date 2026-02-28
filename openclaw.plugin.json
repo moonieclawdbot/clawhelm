@@ -24,7 +24,7 @@
           },
           "tiers": {
             "type": "object",
-            "description": "Tier-to-model mapping: tasks are classified into tiers, and each tier selects from its configured primary/fallback chain.",
+            "description": "Tier-to-model mapping for default routing. Each tier selects from a primary/fallback model chain.",
             "properties": {
               "SIMPLE": {
                 "type": "object",
@@ -54,6 +54,55 @@
                   "fallback": { "type": "array", "items": { "type": "string" } }
                 }
               }
+            }
+          },
+          "agenticTiers": {
+            "type": "object",
+            "description": "Optional tier-to-model mapping used for detected or forced agentic workflows.",
+            "properties": {
+              "SIMPLE": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "MEDIUM": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "COMPLEX": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "REASONING": {
+                "type": "object",
+                "properties": {
+                  "primary": { "type": "string" },
+                  "fallback": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "overrides": {
+            "type": "object",
+            "properties": {
+              "maxTokensForceComplex": { "type": "number" },
+              "structuredOutputMinTier": {
+                "type": "string",
+                "enum": ["SIMPLE", "MEDIUM", "COMPLEX", "REASONING"]
+              },
+              "ambiguousDefaultTier": {
+                "type": "string",
+                "enum": ["SIMPLE", "MEDIUM", "COMPLEX", "REASONING"]
+              },
+              "agenticMode": { "type": "boolean" }
             }
           }
         }

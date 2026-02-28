@@ -3,15 +3,13 @@ import { describe, expect, it } from "vitest";
 import { route } from "./index.js";
 import type { RoutingConfig } from "./types.js";
 
-const modelPricing = new Map([
-  ["simple/model", { inputPrice: 1, outputPrice: 1 }],
-  ["medium/model", { inputPrice: 1, outputPrice: 1 }],
-  ["complex/model", { inputPrice: 1, outputPrice: 1 }],
-  ["reason/model", { inputPrice: 1, outputPrice: 1 }],
-  ["agentic/model", { inputPrice: 1, outputPrice: 1 }],
-  ["eco/model", { inputPrice: 1, outputPrice: 1 }],
-  ["premium/model", { inputPrice: 1, outputPrice: 1 }],
-  ["fallback/model", { inputPrice: 1, outputPrice: 1 }],
+const availableModels = new Set([
+  "simple/model",
+  "medium/model",
+  "complex/model",
+  "reason/model",
+  "agentic/model",
+  "fallback/model",
 ]);
 
 function makeConfig(): RoutingConfig {
@@ -75,18 +73,6 @@ function makeConfig(): RoutingConfig {
       COMPLEX: { primary: "agentic/model", fallback: [] },
       REASONING: { primary: "agentic/model", fallback: [] },
     },
-    ecoTiers: {
-      SIMPLE: { primary: "eco/model", fallback: [] },
-      MEDIUM: { primary: "eco/model", fallback: [] },
-      COMPLEX: { primary: "eco/model", fallback: [] },
-      REASONING: { primary: "eco/model", fallback: [] },
-    },
-    premiumTiers: {
-      SIMPLE: { primary: "premium/model", fallback: [] },
-      MEDIUM: { primary: "premium/model", fallback: [] },
-      COMPLEX: { primary: "premium/model", fallback: [] },
-      REASONING: { primary: "premium/model", fallback: [] },
-    },
     overrides: {
       maxTokensForceComplex: 999999,
       structuredOutputMinTier: "MEDIUM",
@@ -99,7 +85,7 @@ function makeConfig(): RoutingConfig {
 describe("route tier selection flow", () => {
   it("selects MEDIUM tier model from configured tier chain", () => {
     const config = makeConfig();
-    const decision = route("neutral prompt", undefined, 200, { config, modelPricing });
+    const decision = route("neutral prompt", undefined, 200, { config, availableModels });
 
     expect(decision.tier).toBe("MEDIUM");
     expect(decision.model).toBe("medium/model");
@@ -107,7 +93,7 @@ describe("route tier selection flow", () => {
 
   it("upgrades to structured-output minimum tier", () => {
     const config = makeConfig();
-    const decision = route("hello", "Respond as JSON", 200, { config, modelPricing });
+    const decision = route("hello", "Respond as JSON", 200, { config, availableModels });
 
     expect(decision.tier).toBe("MEDIUM");
     expect(decision.reasoning).toContain("upgraded to MEDIUM (structured output)");
@@ -118,28 +104,10 @@ describe("route tier selection flow", () => {
 
     const decision = route("read file and edit then verify", undefined, 200, {
       config,
-      modelPricing,
+      availableModels,
     });
 
     expect(decision.model).toBe("agentic/model");
     expect(decision.reasoning).toContain("| agentic");
-  });
-
-  it("uses eco and premium profile tier sets", () => {
-    const baseConfig = makeConfig();
-
-    const ecoDecision = route("neutral prompt", undefined, 200, {
-      config: baseConfig,
-      modelPricing,
-      routingProfile: "eco",
-    });
-    expect(ecoDecision.model).toBe("eco/model");
-
-    const premiumDecision = route("neutral prompt", undefined, 200, {
-      config: baseConfig,
-      modelPricing,
-      routingProfile: "premium",
-    });
-    expect(premiumDecision.model).toBe("premium/model");
   });
 });

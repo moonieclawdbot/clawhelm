@@ -1,43 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateModelCost, selectModel, type ModelPricing } from "./selector.js";
+import { getFallbackChain, selectModel } from "./selector.js";
 import type { TierConfig } from "./types.js";
 
 const TIER_CONFIGS: Record<"SIMPLE" | "MEDIUM" | "COMPLEX" | "REASONING", TierConfig> = {
-  SIMPLE: { primary: "moonshot/kimi-k2.5", fallback: [] },
+  SIMPLE: { primary: "moonshot/kimi-k2.5", fallback: ["openai/gpt-4o-mini"] },
   MEDIUM: { primary: "moonshot/kimi-k2.5", fallback: [] },
   COMPLEX: { primary: "moonshot/kimi-k2.5", fallback: [] },
   REASONING: { primary: "moonshot/kimi-k2.5", fallback: [] },
 };
 
-const MODEL_PRICING = new Map<string, ModelPricing>([
-  ["moonshot/kimi-k2.5", { inputPrice: 0.5, outputPrice: 2.4 }],
-  ["anthropic/claude-opus-4-5", { inputPrice: 5, outputPrice: 25 }],
-]);
-
 describe("selectModel", () => {
-  it("uses dashed Claude baseline ID when computing savings", () => {
-    const decision = selectModel(
-      "SIMPLE",
-      0.95,
-      "rules",
-      "test",
-      TIER_CONFIGS,
-      MODEL_PRICING,
-      1000,
-      1000,
-    );
+  it("selects primary model from the configured tier chain", () => {
+    const decision = selectModel("SIMPLE", 0.95, "rules", "test", TIER_CONFIGS);
 
-    expect(decision.baselineCost).toBeGreaterThan(0);
-    expect(decision.savings).toBeGreaterThan(0);
+    expect(decision.model).toBe("moonshot/kimi-k2.5");
+    expect(decision.tier).toBe("SIMPLE");
+    expect(decision.confidence).toBe(0.95);
   });
 });
 
-describe("calculateModelCost", () => {
-  it("uses dashed Claude baseline ID when recomputing fallback costs", () => {
-    const costs = calculateModelCost("moonshot/kimi-k2.5", MODEL_PRICING, 1000, 1000);
-
-    expect(costs.baselineCost).toBeGreaterThan(0);
-    expect(costs.savings).toBeGreaterThan(0);
+describe("getFallbackChain", () => {
+  it("returns ordered model chain for the tier", () => {
+    expect(getFallbackChain("SIMPLE", TIER_CONFIGS)).toEqual([
+      "moonshot/kimi-k2.5",
+      "openai/gpt-4o-mini",
+    ]);
   });
 });

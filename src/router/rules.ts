@@ -5,7 +5,7 @@
  * score to a tier using configurable boundaries. Confidence is calibrated
  * via sigmoid — low confidence triggers the fallback classifier.
  *
- * Handles 70-80% of requests in < 1ms with zero cost.
+ * Handles 70-80% of requests in < 1ms.
  */
 
 import type { Tier, ScoringResult, ScoringConfig } from "./types.js";
@@ -75,7 +75,7 @@ function scoreQuestionComplexity(prompt: string): DimensionScore {
  * Score agentic task indicators.
  * Returns agenticScore (0-1) based on keyword matches:
  * - 4+ matches = 1.0 (high agentic)
- * - 3 matches = 0.6 (moderate agentic, triggers auto-agentic mode)
+ * - 3 matches = 0.6 (moderate agentic, can trigger agentic tiers)
  * - 1-2 matches = 0.2 (low agentic)
  *
  * Thresholds raised because common keywords were pruned from the list.

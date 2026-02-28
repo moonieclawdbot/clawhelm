@@ -1,12 +1,11 @@
 /**
  * LLM Classifier (Fallback)
  *
- * When the rule-based classifier returns ambiguous (score 1-2),
- * we send a classification request to the cheapest model.
+ * When the rule-based classifier returns ambiguous,
+ * we send a classification request to the configured classifier model.
  *
- * Cost per classification: ~$0.00003
  * Latency: ~200-400ms
- * Only triggered for ~20-30% of requests.
+ * Only triggered for ambiguous requests.
  */
 
 import type { Tier } from "./types.js";
@@ -35,7 +34,7 @@ export type LLMClassifierConfig = {
 type PayFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 /**
- * Classify a prompt using a cheap LLM.
+ * Classify a prompt using the configured classifier LLM.
  * Returns tier and confidence. Defaults to MEDIUM on any failure.
  */
 export async function classifyByLLM(
