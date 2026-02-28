@@ -13,7 +13,6 @@ import { selectModel, type ModelPricing } from "./selector.js";
 export type RouterOptions = {
   config: RoutingConfig;
   modelPricing: Map<string, ModelPricing>;
-  routingProfile?: "free" | "eco" | "auto" | "premium";
 };
 
 function normalizeModelId(modelId: string): string {
@@ -63,10 +62,6 @@ export function constrainRoutingConfig(
   return {
     ...config,
     tiers: constrainTierConfigs(config.tiers, available),
-    ecoTiers: config.ecoTiers ? constrainTierConfigs(config.ecoTiers, available) : undefined,
-    premiumTiers: config.premiumTiers
-      ? constrainTierConfigs(config.premiumTiers, available)
-      : undefined,
     agenticTiers: config.agenticTiers
       ? constrainTierConfigs(config.agenticTiers, available)
       : undefined,
@@ -98,31 +93,15 @@ export function route(
   // --- Rule-based classification (runs first to get agenticScore) ---
   const ruleResult = classifyByRules(prompt, systemPrompt, estimatedTokens, config.scoring);
 
-  // --- Select tier configs based on routing profile ---
-  const { routingProfile } = options;
-  let tierConfigs: Record<Tier, { primary: string; fallback: string[] }>;
-  let profileSuffix = "";
-
-  if (routingProfile === "eco" && config.ecoTiers) {
-    // Eco profile: ultra cost-optimized models
-    tierConfigs = config.ecoTiers;
-    profileSuffix = " | eco";
-  } else if (routingProfile === "premium" && config.premiumTiers) {
-    // Premium profile: best quality models
-    tierConfigs = config.premiumTiers;
-    profileSuffix = " | premium";
-  } else {
-    // Auto profile (or undefined): intelligent routing with agentic detection
-    // Determine if agentic tiers should be used:
-    // 1. Explicit agenticMode config OR
-    // 2. Auto-detected agentic task (agenticScore >= 0.5, lowered for better multi-step detection)
-    const agenticScore = ruleResult.agenticScore ?? 0;
-    const isAutoAgentic = agenticScore >= 0.5;
-    const isExplicitAgentic = config.overrides.agenticMode ?? false;
-    const useAgenticTiers = (isAutoAgentic || isExplicitAgentic) && config.agenticTiers != null;
-    tierConfigs = useAgenticTiers ? config.agenticTiers! : config.tiers;
-    profileSuffix = useAgenticTiers ? " | agentic" : "";
-  }
+  // Determine if agentic tiers should be used:
+  // 1. Explicit agenticMode config OR
+  // 2. Auto-detected agentic task (agenticScore >= 0.5, lowered for better multi-step detection)
+  const agenticScore = ruleResult.agenticScore ?? 0;
+  const isAutoAgentic = agenticScore >= 0.5;
+  const isExplicitAgentic = config.overrides.agenticMode ?? false;
+  const useAgenticTiers = (isAutoAgentic || isExplicitAgentic) && config.agenticTiers != null;
+  const tierConfigs = useAgenticTiers ? config.agenticTiers! : config.tiers;
+  const reasoningSuffix = useAgenticTiers ? " | agentic" : "";
 
   // --- Override: large context → force COMPLEX ---
   if (estimatedTokens > config.overrides.maxTokensForceComplex) {
@@ -130,12 +109,11 @@ export function route(
       "COMPLEX",
       0.95,
       "rules",
-      `Input exceeds ${config.overrides.maxTokensForceComplex} tokens${profileSuffix}`,
+      `Input exceeds ${config.overrides.maxTokensForceComplex} tokens${reasoningSuffix}`,
       tierConfigs,
       modelPricing,
       estimatedTokens,
       maxOutputTokens,
-      routingProfile,
     );
   }
 
@@ -167,8 +145,7 @@ export function route(
     }
   }
 
-  // Add routing profile suffix to reasoning
-  reasoning += profileSuffix;
+  reasoning += reasoningSuffix;
 
   return selectModel(
     tier,
@@ -179,7 +156,6 @@ export function route(
     modelPricing,
     estimatedTokens,
     maxOutputTokens,
-    routingProfile,
   );
 }
 

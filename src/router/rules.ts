@@ -75,7 +75,7 @@ function scoreQuestionComplexity(prompt: string): DimensionScore {
  * Score agentic task indicators.
  * Returns agenticScore (0-1) based on keyword matches:
  * - 4+ matches = 1.0 (high agentic)
- * - 3 matches = 0.6 (moderate agentic, triggers auto-agentic mode)
+ * - 3 matches = 0.6 (moderate agentic, can trigger agentic tiers)
  * - 1-2 matches = 0.2 (low agentic)
  *
  * Thresholds raised because common keywords were pruned from the list.

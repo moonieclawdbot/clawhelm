@@ -9,8 +9,6 @@ const modelPricing = new Map([
   ["complex/model", { inputPrice: 1, outputPrice: 1 }],
   ["reason/model", { inputPrice: 1, outputPrice: 1 }],
   ["agentic/model", { inputPrice: 1, outputPrice: 1 }],
-  ["eco/model", { inputPrice: 1, outputPrice: 1 }],
-  ["premium/model", { inputPrice: 1, outputPrice: 1 }],
   ["fallback/model", { inputPrice: 1, outputPrice: 1 }],
 ]);
 
@@ -75,18 +73,6 @@ function makeConfig(): RoutingConfig {
       COMPLEX: { primary: "agentic/model", fallback: [] },
       REASONING: { primary: "agentic/model", fallback: [] },
     },
-    ecoTiers: {
-      SIMPLE: { primary: "eco/model", fallback: [] },
-      MEDIUM: { primary: "eco/model", fallback: [] },
-      COMPLEX: { primary: "eco/model", fallback: [] },
-      REASONING: { primary: "eco/model", fallback: [] },
-    },
-    premiumTiers: {
-      SIMPLE: { primary: "premium/model", fallback: [] },
-      MEDIUM: { primary: "premium/model", fallback: [] },
-      COMPLEX: { primary: "premium/model", fallback: [] },
-      REASONING: { primary: "premium/model", fallback: [] },
-    },
     overrides: {
       maxTokensForceComplex: 999999,
       structuredOutputMinTier: "MEDIUM",
@@ -123,23 +109,5 @@ describe("route tier selection flow", () => {
 
     expect(decision.model).toBe("agentic/model");
     expect(decision.reasoning).toContain("| agentic");
-  });
-
-  it("uses eco and premium profile tier sets", () => {
-    const baseConfig = makeConfig();
-
-    const ecoDecision = route("neutral prompt", undefined, 200, {
-      config: baseConfig,
-      modelPricing,
-      routingProfile: "eco",
-    });
-    expect(ecoDecision.model).toBe("eco/model");
-
-    const premiumDecision = route("neutral prompt", undefined, 200, {
-      config: baseConfig,
-      modelPricing,
-      routingProfile: "premium",
-    });
-    expect(premiumDecision.model).toBe("premium/model");
   });
 });

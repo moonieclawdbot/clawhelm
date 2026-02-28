@@ -654,68 +654,6 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     },
   },
 
-  // Eco tier configs - absolute cheapest
-  ecoTiers: {
-    SIMPLE: {
-      primary: "nvidia/gpt-oss-120b", // FREE! $0.00/$0.00
-      fallback: ["google/gemini-2.5-flash-lite", "deepseek/deepseek-chat"],
-    },
-    MEDIUM: {
-      primary: "google/gemini-2.5-flash-lite", // $0.10/$0.40 - cheapest capable with 1M context
-      fallback: ["deepseek/deepseek-chat", "nvidia/gpt-oss-120b"],
-    },
-    COMPLEX: {
-      primary: "google/gemini-2.5-flash-lite", // $0.10/$0.40 - 1M context handles complexity
-      fallback: ["google/gemini-2.5-flash", "deepseek/deepseek-chat", "xai/grok-4-0709"],
-    },
-    REASONING: {
-      primary: "xai/grok-4-1-fast-reasoning", // $0.20/$0.50
-      fallback: ["deepseek/deepseek-reasoner"],
-    },
-  },
-
-  // Premium tier configs - best quality
-  // codex=complex coding, kimi=simple coding, sonnet=reasoning/instructions, opus=architecture/PM/audits
-  premiumTiers: {
-    SIMPLE: {
-      primary: "moonshot/kimi-k2.5", // $0.60/$3.00 - good for simple coding
-      fallback: [
-        "anthropic/claude-haiku-4.5",
-        "google/gemini-2.5-flash-lite",
-        "xai/grok-code-fast-1",
-      ],
-    },
-    MEDIUM: {
-      primary: "openai/gpt-5.2-codex", // $2.50/$10 - strong coding for medium tasks
-      fallback: [
-        "moonshot/kimi-k2.5",
-        "google/gemini-2.5-pro",
-        "xai/grok-4-0709",
-        "anthropic/claude-sonnet-4.6",
-      ],
-    },
-    COMPLEX: {
-      primary: "anthropic/claude-opus-4.6", // Best quality for complex tasks
-      fallback: [
-        "openai/gpt-5.2-codex",
-        "anthropic/claude-opus-4.6",
-        "anthropic/claude-sonnet-4.6",
-        "google/gemini-3.1-pro-preview", // Newest Gemini
-        "google/gemini-3-pro-preview",
-        "moonshot/kimi-k2.5",
-      ],
-    },
-    REASONING: {
-      primary: "anthropic/claude-sonnet-4.6", // $3/$15 - best for reasoning/instructions
-      fallback: [
-        "anthropic/claude-opus-4.6",
-        "anthropic/claude-opus-4.6",
-        "openai/o4-mini", // Newer and cheaper than o3 ($1.10 vs $2.00)
-        "openai/o3",
-        "xai/grok-4-1-fast-reasoning",
-      ],
-    },
-  },
 
   // Agentic tier configs - models that excel at multi-step autonomous tasks
   agenticTiers: {

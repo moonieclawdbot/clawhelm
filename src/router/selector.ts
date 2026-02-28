@@ -26,7 +26,6 @@ export function selectModel(
   modelPricing: Map<string, ModelPricing>,
   estimatedInputTokens: number,
   maxOutputTokens: number,
-  routingProfile?: "free" | "eco" | "auto" | "premium",
 ): RoutingDecision {
   const tierConfig = tierConfigs[tier];
   const model = tierConfig.primary;
@@ -39,7 +38,7 @@ export function selectModel(
   const outputCost = (maxOutputTokens / 1_000_000) * outputPrice;
   const costEstimate = inputCost + outputCost;
 
-  // Baseline: what Claude Opus 4.5 would cost (the premium reference)
+  // Baseline: what Claude Opus 4.5 would cost
   const opusPricing = modelPricing.get(BASELINE_MODEL_ID);
   const opusInputPrice = opusPricing?.inputPrice ?? 0;
   const opusOutputPrice = opusPricing?.outputPrice ?? 0;
@@ -47,13 +46,8 @@ export function selectModel(
   const baselineOutput = (maxOutputTokens / 1_000_000) * opusOutputPrice;
   const baselineCost = baselineInput + baselineOutput;
 
-  // Premium profile doesn't calculate savings (it's about quality, not cost)
   const savings =
-    routingProfile === "premium"
-      ? 0
-      : baselineCost > 0
-        ? Math.max(0, (baselineCost - costEstimate) / baselineCost)
-        : 0;
+    baselineCost > 0 ? Math.max(0, (baselineCost - costEstimate) / baselineCost) : 0;
 
   return {
     model,
@@ -84,7 +78,6 @@ export function calculateModelCost(
   modelPricing: Map<string, ModelPricing>,
   estimatedInputTokens: number,
   maxOutputTokens: number,
-  routingProfile?: "free" | "eco" | "auto" | "premium",
 ): { costEstimate: number; baselineCost: number; savings: number } {
   const pricing = modelPricing.get(model);
 
@@ -95,7 +88,7 @@ export function calculateModelCost(
   const outputCost = (maxOutputTokens / 1_000_000) * outputPrice;
   const costEstimate = inputCost + outputCost;
 
-  // Baseline: what Claude Opus 4.5 would cost (the premium reference)
+  // Baseline: what Claude Opus 4.5 would cost
   const opusPricing = modelPricing.get(BASELINE_MODEL_ID);
   const opusInputPrice = opusPricing?.inputPrice ?? 0;
   const opusOutputPrice = opusPricing?.outputPrice ?? 0;
@@ -103,13 +96,8 @@ export function calculateModelCost(
   const baselineOutput = (maxOutputTokens / 1_000_000) * opusOutputPrice;
   const baselineCost = baselineInput + baselineOutput;
 
-  // Premium profile doesn't calculate savings (it's about quality, not cost)
   const savings =
-    routingProfile === "premium"
-      ? 0
-      : baselineCost > 0
-        ? Math.max(0, (baselineCost - costEstimate) / baselineCost)
-        : 0;
+    baselineCost > 0 ? Math.max(0, (baselineCost - costEstimate) / baselineCost) : 0;
 
   return { costEstimate, baselineCost, savings };
 }

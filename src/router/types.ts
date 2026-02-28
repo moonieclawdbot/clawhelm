@@ -15,7 +15,7 @@ export type ScoringResult = {
   tier: Tier | null; // null = ambiguous, needs fallback classifier
   confidence: number; // sigmoid-calibrated [0, 1]
   signals: string[];
-  agenticScore?: number; // 0-1 agentic task score for auto-switching to agentic tiers
+  agenticScore?: number; // 0-1 agentic task score for switching to agentic tiers
 };
 
 export type RoutingDecision = {
@@ -90,9 +90,5 @@ export type RoutingConfig = {
   tiers: Record<Tier, TierConfig>;
   /** Tier configs for agentic mode - models that excel at multi-step tasks */
   agenticTiers?: Record<Tier, TierConfig>;
-  /** Tier configs for eco profile - ultra cost-optimized */
-  ecoTiers?: Record<Tier, TierConfig>;
-  /** Tier configs for premium profile - best quality */
-  premiumTiers?: Record<Tier, TierConfig>;
   overrides: OverridesConfig;
 };
