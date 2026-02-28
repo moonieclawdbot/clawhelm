@@ -32,17 +32,13 @@ import {
   getFallbackChainFiltered,
   calculateModelCost,
   DEFAULT_ROUTING_CONFIG,
+  constrainRoutingConfig,
   type RouterOptions,
   type RoutingDecision,
   type RoutingConfig,
   type ModelPricing,
 } from "./router/index.js";
-import {
-  BLOCKRUN_MODELS,
-  resolveModelAlias,
-  getModelContextWindow,
-  isReasoningModel,
-} from "./models.js";
+import { BLOCKRUN_MODELS, getModelContextWindow, isReasoningModel } from "./models.js";
 import { logUsage, type UsageEntry } from "./logger.js";
 import { getStats } from "./stats.js";
 import { RequestDeduplicator } from "./dedup.js";
@@ -63,16 +59,7 @@ const BLOCKRUN_API = "https://blockrun.ai/api";
 // Routing profile models - virtual models that trigger intelligent routing
 const AUTO_MODEL = "blockrun/auto";
 
-const ROUTING_PROFILES = new Set([
-  "blockrun/free",
-  "free",
-  "blockrun/eco",
-  "eco",
-  "blockrun/auto",
-  "auto",
-  "blockrun/premium",
-  "premium",
-]);
+const ROUTING_PROFILES = new Set(["free", "eco", "auto", "premium"]);
 const FREE_MODEL = "nvidia/gpt-oss-120b"; // Free model for empty wallet fallback
 const MAX_MESSAGES = 200; // BlockRun API limit - truncate older messages if exceeded
 const CONTEXT_LIMIT_KB = 5120; // Server-side limit: 5MB in KB
@@ -83,6 +70,16 @@ const HEALTH_CHECK_TIMEOUT_MS = 2_000; // Timeout for checking existing proxy
 const RATE_LIMIT_COOLDOWN_MS = 60_000; // 60 seconds cooldown for rate-limited models
 const PORT_RETRY_ATTEMPTS = 5; // Max attempts to bind port (handles TIME_WAIT)
 const PORT_RETRY_DELAY_MS = 1_000; // Delay between retry attempts
+
+function normalizeModelId(modelId: string): string {
+  return modelId.trim().toLowerCase().replace(/^blockrun\//, "");
+}
+
+function resolveConfiguredAlias(modelId: string, aliases?: Record<string, string>): string {
+  const normalized = normalizeModelId(modelId);
+  const resolved = aliases?.[normalized];
+  return resolved ? normalizeModelId(resolved) : normalized;
+}
 
 /**
  * Transform upstream payment errors into user-friendly messages.
@@ -1041,8 +1038,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
   const balanceMonitor = new BalanceMonitor(account.address);
 
   // Build router options (100% local — no external API calls for routing)
-  const routingConfig = mergeRoutingConfig(options.routingConfig);
+  const mergedRoutingConfig = mergeRoutingConfig(options.routingConfig);
   const modelPricing = buildModelPricing(options.configuredModels, options.openclawFallbackModel);
+  const routingConfig = constrainRoutingConfig(mergedRoutingConfig, modelPricing);
   const routerOpts: RouterOptions = {
     config: routingConfig,
     modelPricing,
@@ -1599,20 +1597,16 @@ async function proxyRequest(
         bodyModified = true;
       }
 
-      // Normalize model name for comparison (trim whitespace, lowercase)
-      const normalizedModel =
-        typeof parsed.model === "string" ? parsed.model.trim().toLowerCase() : "";
-
-      // Resolve model aliases (e.g., "claude" -> "anthropic/claude-sonnet-4-6")
-      const resolvedModel = resolveModelAlias(normalizedModel);
+      // Normalize model name for comparison and resolve optional user aliases
+      const normalizedModel = typeof parsed.model === "string" ? normalizeModelId(parsed.model) : "";
+      const resolvedModel = resolveConfiguredAlias(normalizedModel, routerOpts.config.aliases);
       const wasAlias = resolvedModel !== normalizedModel;
 
-      const isRoutingProfile = ROUTING_PROFILES.has(normalizedModel);
+      const isRoutingProfile = ROUTING_PROFILES.has(resolvedModel);
 
       // Extract routing profile type (free/eco/auto/premium)
       if (isRoutingProfile) {
-        const profileName = normalizedModel.replace("blockrun/", "");
-        routingProfile = profileName as "free" | "eco" | "auto" | "premium";
+        routingProfile = resolvedModel as "free" | "eco" | "auto" | "premium";
       }
 
       // Debug: log received model name
@@ -1621,7 +1615,6 @@ async function proxyRequest(
       );
 
       // For explicit model requests, always canonicalize the model ID before upstream calls.
-      // This ensures case/whitespace variants (e.g. "DEEPSEEK/..." or "  model  ") route correctly.
       if (!isRoutingProfile) {
         if (parsed.model !== resolvedModel) {
           parsed.model = resolvedModel;
@@ -1634,7 +1627,7 @@ async function proxyRequest(
       if (isRoutingProfile) {
         // Free profile - direct shortcut to nvidia/gpt-oss-120b (no tier routing)
         if (routingProfile === "free") {
-          const freeModel = "nvidia/gpt-oss-120b";
+          const freeModel = routerOpts.config.tiers.SIMPLE.primary;
           console.log(`[ClawRouter] Free profile - using ${freeModel} directly`);
           parsed.model = freeModel;
           modelId = freeModel;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildModelPricing } from "./proxy.js";
-import { route, DEFAULT_ROUTING_CONFIG } from "./router/index.js";
+import { route, DEFAULT_ROUTING_CONFIG, constrainRoutingConfig } from "./router/index.js";
 import type { ModelDefinitionConfig } from "./types.js";
 
 describe("configured model source routing", () => {
@@ -75,5 +75,85 @@ describe("configured model source routing", () => {
     expect(() => buildModelPricing()).toThrow(
       "No configured models available for ClawHelm and no OpenClaw fallback model is configured",
     );
+  });
+
+  it("constrains tier selection to configured OpenClaw models", () => {
+    const modelPricing = buildModelPricing([
+      {
+        id: "custom/cheap",
+        name: "Cheap",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 32000,
+        maxTokens: 4096,
+      },
+    ]);
+
+    const decision = route("What is 2+2?", undefined, 100, {
+      config: DEFAULT_ROUTING_CONFIG,
+      modelPricing,
+      routingProfile: "auto",
+    });
+
+    expect(decision.model).toBe("custom/cheap");
+  });
+
+  it("applies routing.modelPool constraints", () => {
+    const modelPricing = buildModelPricing([
+      {
+        id: "custom/a",
+        name: "A",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 32000,
+        maxTokens: 4096,
+      },
+      {
+        id: "custom/b",
+        name: "B",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 32000,
+        maxTokens: 4096,
+      },
+    ]);
+
+    const constrained = constrainRoutingConfig(
+      {
+        ...DEFAULT_ROUTING_CONFIG,
+        modelPool: ["custom/b"],
+      },
+      modelPricing,
+    );
+
+    expect(constrained.tiers.SIMPLE.primary).toBe("custom/b");
+    expect(constrained.tiers.MEDIUM.primary).toBe("custom/b");
+  });
+
+  it("throws when routing.modelPool excludes all configured models", () => {
+    const modelPricing = buildModelPricing([
+      {
+        id: "custom/only",
+        name: "Only",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 32000,
+        maxTokens: 4096,
+      },
+    ]);
+
+    expect(() =>
+      constrainRoutingConfig(
+        {
+          ...DEFAULT_ROUTING_CONFIG,
+          modelPool: ["custom/missing"],
+        },
+        modelPricing,
+      ),
+    ).toThrow("No configured models remain after applying routing.modelPool constraints");
   });
 });
