@@ -20,16 +20,16 @@ function normalizeModelId(modelId: string): string {
   return modelId.trim().toLowerCase();
 }
 
-function constrainTierConfig(tierConfig: TierConfig, allowed: Set<string>): TierConfig {
+function constrainTierConfig(tierConfig: TierConfig, available: Set<string>): TierConfig {
   const chain = [tierConfig.primary, ...tierConfig.fallback].map(normalizeModelId);
-  const filtered = chain.filter((model) => allowed.has(model));
+  const filtered = chain.filter((model) => available.has(model));
 
   if (filtered.length === 0) {
-    const firstAllowed = allowed.values().next().value;
-    if (!firstAllowed) {
-      throw new Error("No models available for routing after applying model pool constraints");
+    const firstAvailable = available.values().next().value;
+    if (!firstAvailable) {
+      throw new Error("No configured models available for routing");
     }
-    return { primary: firstAllowed, fallback: [] };
+    return { primary: firstAvailable, fallback: [] };
   }
 
   return {
@@ -40,13 +40,13 @@ function constrainTierConfig(tierConfig: TierConfig, allowed: Set<string>): Tier
 
 function constrainTierConfigs(
   tierConfigs: Record<Tier, TierConfig>,
-  allowed: Set<string>,
+  available: Set<string>,
 ): Record<Tier, TierConfig> {
   return {
-    SIMPLE: constrainTierConfig(tierConfigs.SIMPLE, allowed),
-    MEDIUM: constrainTierConfig(tierConfigs.MEDIUM, allowed),
-    COMPLEX: constrainTierConfig(tierConfigs.COMPLEX, allowed),
-    REASONING: constrainTierConfig(tierConfigs.REASONING, allowed),
+    SIMPLE: constrainTierConfig(tierConfigs.SIMPLE, available),
+    MEDIUM: constrainTierConfig(tierConfigs.MEDIUM, available),
+    COMPLEX: constrainTierConfig(tierConfigs.COMPLEX, available),
+    REASONING: constrainTierConfig(tierConfigs.REASONING, available),
   };
 }
 
@@ -56,28 +56,19 @@ export function constrainRoutingConfig(
 ): RoutingConfig {
   const available = new Set(Array.from(modelPricing.keys()).map(normalizeModelId));
 
-  const configuredPool = (config.modelPool ?? []).map(normalizeModelId);
-  const allowed =
-    configuredPool.length > 0
-      ? new Set(configuredPool.filter((model) => available.has(model)))
-      : new Set(available);
-
-  if (allowed.size === 0) {
-    throw new Error(
-      "No configured models remain after applying routing.modelPool constraints",
-    );
+  if (available.size === 0) {
+    throw new Error("No configured models available for routing");
   }
 
   return {
     ...config,
-    modelPool: configuredPool.length > 0 ? configuredPool : undefined,
-    tiers: constrainTierConfigs(config.tiers, allowed),
-    ecoTiers: config.ecoTiers ? constrainTierConfigs(config.ecoTiers, allowed) : undefined,
+    tiers: constrainTierConfigs(config.tiers, available),
+    ecoTiers: config.ecoTiers ? constrainTierConfigs(config.ecoTiers, available) : undefined,
     premiumTiers: config.premiumTiers
-      ? constrainTierConfigs(config.premiumTiers, allowed)
+      ? constrainTierConfigs(config.premiumTiers, available)
       : undefined,
     agenticTiers: config.agenticTiers
-      ? constrainTierConfigs(config.agenticTiers, allowed)
+      ? constrainTierConfigs(config.agenticTiers, available)
       : undefined,
   };
 }

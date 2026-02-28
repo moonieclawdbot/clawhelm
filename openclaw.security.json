@@ -6,7 +6,7 @@
   "expectedBehaviors": [
     "Classifies prompts locally into SIMPLE, MEDIUM, COMPLEX, or REASONING tiers",
     "Selects models from OpenClaw-configured provider model definitions",
-    "Applies optional routing.modelPool allowlist constraints to tier model chains"
+    "Constrains tier chains to configured and available provider model IDs"
   ],
   "securityNotes": [
     "Model credentials and provider auth stay in OpenClaw provider configuration",

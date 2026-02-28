@@ -22,11 +22,6 @@
               "cacheTtlMs": { "type": "number" }
             }
           },
-          "modelPool": {
-            "type": "array",
-            "description": "Optional allowlist of model IDs. When set, ClawHelm only routes to models present in this list and in OpenClaw provider model config.",
-            "items": { "type": "string" }
-          },
           "tiers": {
             "type": "object",
             "description": "Tier-to-model mapping: tasks are classified into tiers, and each tier selects from its configured primary/fallback chain.",

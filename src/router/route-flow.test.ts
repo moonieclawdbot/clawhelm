@@ -63,7 +63,6 @@ function makeConfig(): RoutingConfig {
       confidenceSteepness: 12,
       confidenceThreshold: 0.7,
     },
-    modelPool: ["simple/model", "medium/model", "reason/model", "fallback/model"],
     tiers: {
       SIMPLE: { primary: "simple/model", fallback: [] },
       MEDIUM: { primary: "medium/model", fallback: ["fallback/model"] },
@@ -98,7 +97,7 @@ function makeConfig(): RoutingConfig {
 }
 
 describe("route tier selection flow", () => {
-  it("selects MEDIUM tier model from the modelPool-constrained chain", () => {
+  it("selects MEDIUM tier model from configured tier chain", () => {
     const config = makeConfig();
     const decision = route("neutral prompt", undefined, 200, { config, modelPricing });
 
@@ -116,7 +115,6 @@ describe("route tier selection flow", () => {
 
   it("uses agentic tier chain when agentic task is detected", () => {
     const config = makeConfig();
-    config.modelPool = ["agentic/model", "fallback/model"];
 
     const decision = route("read file and edit then verify", undefined, 200, {
       config,
@@ -129,7 +127,6 @@ describe("route tier selection flow", () => {
 
   it("uses eco and premium profile tier sets", () => {
     const baseConfig = makeConfig();
-    baseConfig.modelPool = ["eco/model", "premium/model", "fallback/model"];
 
     const ecoDecision = route("neutral prompt", undefined, 200, {
       config: baseConfig,
