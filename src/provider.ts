@@ -1,10 +1,8 @@
 /**
- * ClawHelm ProviderPlugin for OpenClaw
+ * ClawHelm ProviderPlugin for OpenClaw.
  *
- * Phase 1+2 migration behavior:
- * - keep provider id `clawhelm`
- * - do not bootstrap or depend on wallet/x402/proxy runtime in active plugin path
- * - rely on OpenClaw model/provider config as the sole source of model + credential data
+ * ClawHelm is configured as its own provider (`clawhelm`) and relies on
+ * OpenClaw model/provider configuration as the source of model + credential data.
  */
 
 import type { ProviderPlugin } from "./types.js";
@@ -24,6 +22,3 @@ export const clawhelmProvider: ProviderPlugin = {
   // Auth and credentials are sourced from OpenClaw model provider config.
   auth: [],
 };
-
-// Backward compatibility alias during migration
-export const blockrunProvider = clawhelmProvider;

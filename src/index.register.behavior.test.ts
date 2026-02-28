@@ -49,7 +49,9 @@ describe("plugin register behavior", () => {
     mkdirSync(openclawDir, { recursive: true });
     writeFileSync(join(openclawDir, "openclaw.json"), JSON.stringify({ existing: true }));
 
-    const api = makeApi({ models: { providers: { clawhelm: { models: [] } } } });
+    const api = makeApi({
+      models: { providers: { clawhelm: { baseUrl: "http://127.0.0.1:8402/v1", models: [] } } },
+    });
 
     await plugin.register?.(api);
 
@@ -58,21 +60,30 @@ describe("plugin register behavior", () => {
     expect(readdirSync(openclawDir).sort()).toEqual(["openclaw.json"]);
   });
 
-  it("uses configured models from clawhelm or blockrun provider for routing visibility logs", async () => {
+  it("uses configured models from clawhelm provider for routing visibility logs", async () => {
     const clawhelmApi = makeApi({
-      models: { providers: { clawhelm: { models: [{ id: "custom/model" }] } } },
+      models: {
+        providers: {
+          clawhelm: {
+            baseUrl: "http://127.0.0.1:8402/v1",
+            models: [
+              {
+                id: "custom/model",
+                name: "Custom",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 32000,
+                maxTokens: 4096,
+              },
+            ],
+          },
+        },
+      },
     });
     await plugin.register?.(clawhelmApi);
     expect(clawhelmApi.logger.info).toHaveBeenCalledWith(
       "ClawHelm provider registered (using 1 OpenClaw-configured models)",
-    );
-
-    const blockrunApi = makeApi({
-      models: { providers: { blockrun: { models: [{ id: "custom/model" }, { id: "custom/model-2" }] } } },
-    });
-    await plugin.register?.(blockrunApi);
-    expect(blockrunApi.logger.info).toHaveBeenCalledWith(
-      "ClawHelm provider registered (using 2 OpenClaw-configured models)",
     );
   });
 });

@@ -62,8 +62,7 @@ const plugin: OpenClawPluginDefinition = {
     api.registerProvider(clawhelmProvider);
 
     const configuredProviders = api.config.models?.providers;
-    const configuredModels =
-      configuredProviders?.clawhelm?.models ?? configuredProviders?.blockrun?.models;
+    const configuredModels = configuredProviders?.clawhelm?.models;
     const configuredModelCount = Array.isArray(configuredModels) ? configuredModels.length : 0;
 
     api.logger.info(
@@ -83,7 +82,7 @@ export default plugin;
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
 export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
-export { clawhelmProvider, blockrunProvider } from "./provider.js";
+export { clawhelmProvider } from "./provider.js";
 export {
   OPENCLAW_MODELS,
   BLOCKRUN_MODELS,
