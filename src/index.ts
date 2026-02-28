@@ -68,8 +68,8 @@ const plugin: OpenClawPluginDefinition = {
 
     api.logger.info(
       configuredModelCount > 0
-        ? `BlockRun provider registered (using ${configuredModelCount} OpenClaw-configured models)`
-        : "BlockRun provider registered (no OpenClaw-configured models detected)",
+        ? `ClawHelm provider registered (using ${configuredModelCount} OpenClaw-configured models)`
+        : "ClawHelm provider registered (no OpenClaw-configured models detected)",
     );
 
     // Runtime wallet/proxy bootstrap removed from ClawHelm.

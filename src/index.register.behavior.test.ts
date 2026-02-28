@@ -64,7 +64,7 @@ describe("plugin register behavior", () => {
     });
     await plugin.register?.(clawhelmApi);
     expect(clawhelmApi.logger.info).toHaveBeenCalledWith(
-      "BlockRun provider registered (using 1 OpenClaw-configured models)",
+      "ClawHelm provider registered (using 1 OpenClaw-configured models)",
     );
 
     const blockrunApi = makeApi({
@@ -72,7 +72,7 @@ describe("plugin register behavior", () => {
     });
     await plugin.register?.(blockrunApi);
     expect(blockrunApi.logger.info).toHaveBeenCalledWith(
-      "BlockRun provider registered (using 2 OpenClaw-configured models)",
+      "ClawHelm provider registered (using 2 OpenClaw-configured models)",
     );
   });
 });
