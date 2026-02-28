@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import plugin from "./index.js";
-import type { OpenClawPluginApi } from "./types.js";
+import type { ModelDefinitionConfig, OpenClawPluginApi } from "./types.js";
 
 describe("plugin register model source", () => {
   it("keeps OpenClaw-configured blockrun models unchanged", async () => {
-    const configuredModels = [
+    const configuredModels: ModelDefinitionConfig[] = [
       {
         id: "custom/configured-model",
         name: "Configured",

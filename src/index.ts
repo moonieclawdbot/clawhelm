@@ -19,21 +19,7 @@
 
 import type { OpenClawPluginDefinition, OpenClawPluginApi } from "./types.js";
 import { clawhelmProvider } from "./provider.js";
-import { getProxyPort } from "./proxy.js";
 import type { RoutingConfig } from "./router/index.js";
-
-import { OPENCLAW_MODELS } from "./models.js";
-import {
-  writeFileSync,
-  existsSync,
-  readdirSync,
-  mkdirSync,
-  copyFileSync,
-  renameSync,
-} from "node:fs";
-import { readTextFileSync } from "./fs-read.js";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { VERSION } from "./version.js";
 
 /**
@@ -47,338 +33,6 @@ function isCompletionMode(): boolean {
   // Check for: openclaw completion --shell <shell>
   // argv[0] = node/bun, argv[1] = openclaw, argv[2] = completion
   return args.some((arg, i) => arg === "completion" && i >= 1 && i <= 3);
-}
-
-/**
- * Inject BlockRun models config into OpenClaw config file.
- * This is required because registerProvider() alone doesn't make models available.
- *
- * CRITICAL: This function must be idempotent and handle ALL edge cases:
- * - Config file doesn't exist (create it)
- * - Config file exists but is empty/invalid (reinitialize)
- * - blockrun provider exists but has undefined fields (fix them)
- * - Config exists but uses old port/models (update them)
- *
- * This function is called on EVERY plugin load to ensure config is always correct.
- */
-function injectModelsConfig(logger: { info: (msg: string) => void }): void {
-  const configDir = join(homedir(), ".openclaw");
-  const configPath = join(configDir, "openclaw.json");
-
-  let config: Record<string, unknown> = {};
-  let needsWrite = false;
-
-  // Create config directory if it doesn't exist
-  if (!existsSync(configDir)) {
-    try {
-      mkdirSync(configDir, { recursive: true });
-      logger.info("Created OpenClaw config directory");
-    } catch (err) {
-      logger.info(
-        `Failed to create config dir: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return;
-    }
-  }
-
-  // Load existing config or create new one
-  // IMPORTANT: On parse failure, we backup and skip writing to avoid clobbering
-  // other plugins' config (e.g. Telegram channels). This prevents a race condition
-  // where a partial/corrupt config file causes us to overwrite everything with
-  // only our models+agents sections.
-  if (existsSync(configPath)) {
-    try {
-      const content = readTextFileSync(configPath).trim();
-      if (content) {
-        config = JSON.parse(content);
-      } else {
-        logger.info("OpenClaw config is empty, initializing");
-        needsWrite = true;
-      }
-    } catch (err) {
-      // Config file exists but is corrupt/invalid JSON — likely a partial write
-      // from another plugin or a race condition during gateway restart.
-      // Backup the corrupt file and SKIP writing to avoid losing other config.
-      const backupPath = `${configPath}.backup.${Date.now()}`;
-      try {
-        copyFileSync(configPath, backupPath);
-        logger.info(`Config parse failed, backed up to ${backupPath}`);
-      } catch {
-        logger.info("Config parse failed, could not create backup");
-      }
-      logger.info(
-        `Skipping config injection (corrupt file): ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return; // Don't write — we'd lose other plugins' config
-    }
-  } else {
-    logger.info("OpenClaw config not found, creating");
-    needsWrite = true;
-  }
-
-  // Initialize config structure
-  if (!config.models) {
-    config.models = {};
-    needsWrite = true;
-  }
-  const models = config.models as Record<string, unknown>;
-  if (!models.providers) {
-    models.providers = {};
-    needsWrite = true;
-  }
-
-  const proxyPort = getProxyPort();
-  const expectedBaseUrl = `http://127.0.0.1:${proxyPort}/v1`;
-
-  const providers = models.providers as Record<string, unknown>;
-
-  if (!providers.blockrun) {
-    // Create new blockrun provider config
-    providers.blockrun = {
-      baseUrl: expectedBaseUrl,
-      api: "openai-completions",
-      // apiKey is required by pi-coding-agent's ModelRegistry for providers with models.
-      // We use a placeholder since the proxy handles real x402 auth internally.
-      apiKey: "x402-proxy-handles-auth",
-      models: OPENCLAW_MODELS,
-    };
-    logger.info("Injected BlockRun provider config");
-    needsWrite = true;
-  } else {
-    // Validate and fix existing blockrun config
-    const blockrun = providers.blockrun as Record<string, unknown>;
-    let fixed = false;
-
-    // Fix: explicitly check for undefined/missing fields
-    if (!blockrun.baseUrl || blockrun.baseUrl !== expectedBaseUrl) {
-      blockrun.baseUrl = expectedBaseUrl;
-      fixed = true;
-    }
-    // Ensure api field is present
-    if (!blockrun.api) {
-      blockrun.api = "openai-completions";
-      fixed = true;
-    }
-    // Ensure apiKey is present (required by ModelRegistry for /model picker)
-    if (!blockrun.apiKey) {
-      blockrun.apiKey = "x402-proxy-handles-auth";
-      fixed = true;
-    }
-    // Always refresh models list (ensures new models/aliases are available)
-    // Check both length AND content - new models may be added without changing count
-    const currentModels = blockrun.models as Array<{ id?: string }>;
-    const currentModelIds = new Set(
-      Array.isArray(currentModels) ? currentModels.map((m) => m?.id).filter(Boolean) : [],
-    );
-    const expectedModelIds = OPENCLAW_MODELS.map((m) => m.id);
-    const needsModelUpdate =
-      !currentModels ||
-      !Array.isArray(currentModels) ||
-      currentModels.length !== OPENCLAW_MODELS.length ||
-      expectedModelIds.some((id) => !currentModelIds.has(id));
-
-    if (needsModelUpdate) {
-      blockrun.models = OPENCLAW_MODELS;
-      fixed = true;
-      logger.info(`Updated models list (${OPENCLAW_MODELS.length} models)`);
-    }
-
-    if (fixed) {
-      logger.info("Fixed incomplete BlockRun provider config");
-      needsWrite = true;
-    }
-  }
-
-  // Set blockrun/auto as default model ONLY on first install (not every load!)
-  // This respects user's model selection and prevents hijacking their choice.
-  if (!config.agents) {
-    config.agents = {};
-    needsWrite = true;
-  }
-  const agents = config.agents as Record<string, unknown>;
-  if (!agents.defaults) {
-    agents.defaults = {};
-    needsWrite = true;
-  }
-  const defaults = agents.defaults as Record<string, unknown>;
-  if (!defaults.model) {
-    defaults.model = {};
-    needsWrite = true;
-  }
-  const model = defaults.model as Record<string, unknown>;
-
-  // ONLY set default if no primary model exists (first install)
-  // Do NOT override user's selection on subsequent loads
-  if (!model.primary) {
-    model.primary = "blockrun/auto";
-    logger.info("Set default model to blockrun/auto (first install)");
-    needsWrite = true;
-  }
-
-  // Add key model aliases to allowlist for /model picker visibility
-  // Only add essential aliases, not all 50+ models to avoid config pollution
-  const KEY_MODEL_ALIASES = [
-    { id: "auto", alias: "auto" },
-    { id: "eco", alias: "eco" },
-    { id: "premium", alias: "premium" },
-    { id: "free", alias: "free" },
-    { id: "sonnet", alias: "sonnet-4.6" },
-    { id: "opus", alias: "opus" },
-    { id: "haiku", alias: "haiku" },
-    { id: "gpt5", alias: "gpt5" },
-    { id: "codex", alias: "codex" },
-    { id: "grok-fast", alias: "grok-fast" },
-    { id: "grok-code", alias: "grok-code" },
-    { id: "deepseek", alias: "deepseek" },
-    { id: "reasoner", alias: "reasoner" },
-    { id: "kimi", alias: "kimi" },
-    { id: "minimax", alias: "minimax" },
-    { id: "gemini", alias: "gemini" },
-  ];
-
-  // Deprecated aliases to remove from config (cleaned up from picker)
-  const DEPRECATED_ALIASES = [
-    "blockrun/nvidia",
-    "blockrun/gpt",
-    "blockrun/o3",
-    "blockrun/grok",
-    "blockrun/mini",
-    "blockrun/flash", // removed from picker - use gemini instead
-  ];
-
-  if (!defaults.models) {
-    defaults.models = {};
-    needsWrite = true;
-  }
-
-  const allowlist = defaults.models as Record<string, unknown>;
-
-  // Remove deprecated aliases from config
-  for (const deprecated of DEPRECATED_ALIASES) {
-    if (allowlist[deprecated]) {
-      delete allowlist[deprecated];
-      logger.info(`Removed deprecated model alias: ${deprecated}`);
-      needsWrite = true;
-    }
-  }
-
-  // Add current aliases (and update stale aliases)
-  for (const m of KEY_MODEL_ALIASES) {
-    const fullId = `blockrun/${m.id}`;
-    const existing = allowlist[fullId] as Record<string, unknown> | undefined;
-    if (!existing) {
-      allowlist[fullId] = { alias: m.alias };
-      needsWrite = true;
-    } else if (existing.alias !== m.alias) {
-      existing.alias = m.alias;
-      needsWrite = true;
-    }
-  }
-
-  // Write config file if any changes were made
-  // Use atomic write (temp file + rename) to prevent partial writes that could
-  // corrupt the config and cause other plugins to lose their settings on next load.
-  if (needsWrite) {
-    try {
-      const tmpPath = `${configPath}.tmp.${process.pid}`;
-      writeFileSync(tmpPath, JSON.stringify(config, null, 2));
-      renameSync(tmpPath, configPath);
-      logger.info("Smart routing enabled (blockrun/auto)");
-    } catch (err) {
-      logger.info(`Failed to write config: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-}
-
-/**
- * Inject dummy auth profile for BlockRun into agent auth stores.
- * OpenClaw's agent system looks for auth credentials even if provider has auth: [].
- * We inject a placeholder so the lookup succeeds (proxy handles real auth internally).
- */
-function injectAuthProfile(logger: { info: (msg: string) => void }): void {
-  const agentsDir = join(homedir(), ".openclaw", "agents");
-
-  // Create agents directory if it doesn't exist
-  if (!existsSync(agentsDir)) {
-    try {
-      mkdirSync(agentsDir, { recursive: true });
-    } catch (err) {
-      logger.info(
-        `Could not create agents dir: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return;
-    }
-  }
-
-  try {
-    // Find all agent directories
-    let agents = readdirSync(agentsDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-
-    // Always ensure "main" agent has auth (most common agent)
-    if (!agents.includes("main")) {
-      agents = ["main", ...agents];
-    }
-
-    for (const agentId of agents) {
-      const authDir = join(agentsDir, agentId, "agent");
-      const authPath = join(authDir, "auth-profiles.json");
-
-      // Create agent dir if needed
-      if (!existsSync(authDir)) {
-        try {
-          mkdirSync(authDir, { recursive: true });
-        } catch {
-          continue; // Skip if we can't create the dir
-        }
-      }
-
-      // Load or create auth-profiles.json with correct OpenClaw format
-      // Format: { version: 1, profiles: { "provider:profileId": { type, provider, key } } }
-      let store: { version: number; profiles: Record<string, unknown> } = {
-        version: 1,
-        profiles: {},
-      };
-      if (existsSync(authPath)) {
-        try {
-          const existing = JSON.parse(readTextFileSync(authPath));
-          // Check if valid OpenClaw format (has version and profiles)
-          if (existing.version && existing.profiles) {
-            store = existing;
-          }
-          // Old format without version/profiles is discarded and recreated
-        } catch {
-          // Invalid JSON, use fresh store
-        }
-      }
-
-      // Check if blockrun auth already exists (OpenClaw format: profiles["provider:profileId"])
-      const profileKey = "blockrun:default";
-      if (store.profiles[profileKey]) {
-        continue; // Already configured
-      }
-
-      // Inject placeholder auth for blockrun (OpenClaw format)
-      // The proxy handles real x402 auth internally, this just satisfies OpenClaw's lookup
-      store.profiles[profileKey] = {
-        type: "api_key",
-        provider: "blockrun",
-        key: "x402-proxy-handles-auth",
-      };
-
-      try {
-        writeFileSync(authPath, JSON.stringify(store, null, 2));
-        logger.info(`Injected BlockRun auth profile for agent: ${agentId}`);
-      } catch (err) {
-        logger.info(
-          `Could not inject auth for ${agentId}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-  } catch (err) {
-    logger.info(`Auth injection failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
 }
 
 const plugin: OpenClawPluginDefinition = {
@@ -404,23 +58,17 @@ const plugin: OpenClawPluginDefinition = {
       return;
     }
 
-    // Register BlockRun as a provider (sync — available immediately)
+    // Register ClawHelm provider (sync — available immediately)
     api.registerProvider(clawhelmProvider);
 
-    // Inject dummy auth profiles into agent auth stores
-    // OpenClaw's agent system looks for auth even if provider has auth: []
-    injectAuthProfile(api.logger);
-
-    const configuredModelCount =
-      api.config.models?.providers?.blockrun?.models &&
-      Array.isArray(api.config.models.providers.blockrun.models)
-        ? api.config.models.providers.blockrun.models.length
-        : 0;
+    const configuredProviders = api.config.models?.providers;
+    const configuredModels = configuredProviders?.clawhelm?.models;
+    const configuredModelCount = Array.isArray(configuredModels) ? configuredModels.length : 0;
 
     api.logger.info(
       configuredModelCount > 0
-        ? `BlockRun provider registered (using ${configuredModelCount} OpenClaw-configured models)`
-        : "BlockRun provider registered (no OpenClaw-configured models detected)",
+        ? `ClawHelm provider registered (using ${configuredModelCount} OpenClaw-configured models)`
+        : "ClawHelm provider registered (no OpenClaw-configured models detected)",
     );
 
     // Runtime wallet/proxy bootstrap removed from ClawHelm.
@@ -434,7 +82,7 @@ export default plugin;
 // Re-export for programmatic use
 export { startProxy, getProxyPort } from "./proxy.js";
 export type { ProxyOptions, ProxyHandle, LowBalanceInfo, InsufficientFundsInfo } from "./proxy.js";
-export { clawhelmProvider, blockrunProvider } from "./provider.js";
+export { clawhelmProvider } from "./provider.js";
 export {
   OPENCLAW_MODELS,
   BLOCKRUN_MODELS,
