@@ -6,7 +6,7 @@
  * Ambiguous cases default to configurable tier (MEDIUM by default).
  */
 
-import type { Tier, RoutingDecision, RoutingConfig } from "./types.js";
+import type { Tier, RoutingDecision, RoutingConfig, TierConfig } from "./types.js";
 import { classifyByRules } from "./rules.js";
 import { selectModel, type ModelPricing } from "./selector.js";
 
@@ -15,6 +15,72 @@ export type RouterOptions = {
   modelPricing: Map<string, ModelPricing>;
   routingProfile?: "free" | "eco" | "auto" | "premium";
 };
+
+function normalizeModelId(modelId: string): string {
+  return modelId.trim().toLowerCase().replace(/^blockrun\//, "");
+}
+
+function constrainTierConfig(tierConfig: TierConfig, allowed: Set<string>): TierConfig {
+  const chain = [tierConfig.primary, ...tierConfig.fallback].map(normalizeModelId);
+  const filtered = chain.filter((model) => allowed.has(model));
+
+  if (filtered.length === 0) {
+    const firstAllowed = allowed.values().next().value;
+    if (!firstAllowed) {
+      throw new Error("No models available for routing after applying model pool constraints");
+    }
+    return { primary: firstAllowed, fallback: [] };
+  }
+
+  return {
+    primary: filtered[0],
+    fallback: filtered.slice(1),
+  };
+}
+
+function constrainTierConfigs(
+  tierConfigs: Record<Tier, TierConfig>,
+  allowed: Set<string>,
+): Record<Tier, TierConfig> {
+  return {
+    SIMPLE: constrainTierConfig(tierConfigs.SIMPLE, allowed),
+    MEDIUM: constrainTierConfig(tierConfigs.MEDIUM, allowed),
+    COMPLEX: constrainTierConfig(tierConfigs.COMPLEX, allowed),
+    REASONING: constrainTierConfig(tierConfigs.REASONING, allowed),
+  };
+}
+
+export function constrainRoutingConfig(
+  config: RoutingConfig,
+  modelPricing: Map<string, ModelPricing>,
+): RoutingConfig {
+  const available = new Set(Array.from(modelPricing.keys()).map(normalizeModelId));
+
+  const configuredPool = (config.modelPool ?? []).map(normalizeModelId);
+  const allowed =
+    configuredPool.length > 0
+      ? new Set(configuredPool.filter((model) => available.has(model)))
+      : new Set(available);
+
+  if (allowed.size === 0) {
+    throw new Error(
+      "No configured models remain after applying routing.modelPool constraints",
+    );
+  }
+
+  return {
+    ...config,
+    modelPool: configuredPool.length > 0 ? configuredPool : undefined,
+    tiers: constrainTierConfigs(config.tiers, allowed),
+    ecoTiers: config.ecoTiers ? constrainTierConfigs(config.ecoTiers, allowed) : undefined,
+    premiumTiers: config.premiumTiers
+      ? constrainTierConfigs(config.premiumTiers, allowed)
+      : undefined,
+    agenticTiers: config.agenticTiers
+      ? constrainTierConfigs(config.agenticTiers, allowed)
+      : undefined,
+  };
+}
 
 /**
  * Route a request to the cheapest capable model.
@@ -31,7 +97,8 @@ export function route(
   maxOutputTokens: number,
   options: RouterOptions,
 ): RoutingDecision {
-  const { config, modelPricing } = options;
+  const { modelPricing } = options;
+  const config = constrainRoutingConfig(options.config, modelPricing);
 
   // Estimate input tokens (~4 chars per token)
   const fullText = `${systemPrompt ?? ""} ${prompt}`;

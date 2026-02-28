@@ -279,6 +279,17 @@ plugins:
   - id: "@blockrun/clawrouter"
     config:
       routing:
+        # Optional allowlist: router can only pick from these configured model IDs
+        modelPool:
+          - "google/gemini-2.5-flash"
+          - "deepseek/deepseek-chat"
+          - "openai/gpt-4o-mini"
+
+        # Optional aliases for explicit /model shortcuts
+        aliases:
+          fast: "google/gemini-2.5-flash"
+          reasoner: "deepseek/deepseek-reasoner"
+
         # Override tier assignments
         tiers:
           SIMPLE:

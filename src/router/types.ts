@@ -85,6 +85,10 @@ export type RoutingConfig = {
   version: string;
   classifier: ClassifierConfig;
   scoring: ScoringConfig;
+  /** Optional allowlist of model IDs that routing may choose from. */
+  modelPool?: string[];
+  /** Optional user-defined model shortcuts for explicit model selection. */
+  aliases?: Record<string, string>;
   tiers: Record<Tier, TierConfig>;
   /** Tier configs for agentic mode - models that excel at multi-step tasks */
   agenticTiers?: Record<Tier, TierConfig>;
