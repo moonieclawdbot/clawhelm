@@ -85,16 +85,14 @@ export type RoutingConfig = {
   version: string;
   classifier: ClassifierConfig;
   scoring: ScoringConfig;
-  /** Optional allowlist of model IDs that routing may choose from. */
-  modelPool?: string[];
   /** Optional user-defined model shortcuts for explicit model selection. */
   aliases?: Record<string, string>;
   tiers: Record<Tier, TierConfig>;
   /** Tier configs for agentic mode - models that excel at multi-step tasks */
   agenticTiers?: Record<Tier, TierConfig>;
-  /** Tier configs for eco profile - ultra cost-optimized (blockrun/eco) */
+  /** Tier configs for eco profile - ultra cost-optimized */
   ecoTiers?: Record<Tier, TierConfig>;
-  /** Tier configs for premium profile - best quality (blockrun/premium) */
+  /** Tier configs for premium profile - best quality */
   premiumTiers?: Record<Tier, TierConfig>;
   overrides: OverridesConfig;
 };
