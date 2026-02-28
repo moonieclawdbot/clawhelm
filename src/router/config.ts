@@ -624,7 +624,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     // Tier boundaries on weighted score axis
     tierBoundaries: {
       simpleMedium: 0.0,
-      mediumComplex: 0.3, // Raised from 0.18 - prevent simple tasks from reaching expensive COMPLEX tier
+      mediumComplex: 0.3, // Raised from 0.18 - prevent simple tasks from reaching COMPLEX tier too easily
       complexReasoning: 0.5, // Raised from 0.4 - reserve for true reasoning tasks
     },
 
@@ -658,7 +658,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   // Agentic tier configs - models that excel at multi-step autonomous tasks
   agenticTiers: {
     SIMPLE: {
-      primary: "moonshot/kimi-k2.5", // Cheaper than Haiku ($0.5/$2.4 vs $1/$5), larger context
+      primary: "moonshot/kimi-k2.5", // Larger context and strong agentic performance
       fallback: [
         "anthropic/claude-haiku-4.5",
         "xai/grok-4-1-fast-non-reasoning",

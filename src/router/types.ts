@@ -24,9 +24,6 @@ export type RoutingDecision = {
   confidence: number;
   method: "rules" | "llm";
   reasoning: string;
-  costEstimate: number;
-  baselineCost: number;
-  savings: number; // 0-1 percentage
 };
 
 export type TierConfig = {

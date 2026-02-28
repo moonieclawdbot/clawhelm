@@ -1,18 +1,18 @@
 /**
  * Smart Router Entry Point
  *
- * Classifies requests and routes to the cheapest capable model.
+ * Classifies requests and routes to the configured model chain for each tier.
  * 100% local — rules-based scoring handles all requests in <1ms.
  * Ambiguous cases default to configurable tier (MEDIUM by default).
  */
 
 import type { Tier, RoutingDecision, RoutingConfig, TierConfig } from "./types.js";
 import { classifyByRules } from "./rules.js";
-import { selectModel, type ModelPricing } from "./selector.js";
+import { selectModel } from "./selector.js";
 
 export type RouterOptions = {
   config: RoutingConfig;
-  modelPricing: Map<string, ModelPricing>;
+  availableModels: Set<string>;
 };
 
 function normalizeModelId(modelId: string): string {
@@ -49,11 +49,8 @@ function constrainTierConfigs(
   };
 }
 
-export function constrainRoutingConfig(
-  config: RoutingConfig,
-  modelPricing: Map<string, ModelPricing>,
-): RoutingConfig {
-  const available = new Set(Array.from(modelPricing.keys()).map(normalizeModelId));
+export function constrainRoutingConfig(config: RoutingConfig, availableModels: Set<string>): RoutingConfig {
+  const available = new Set(Array.from(availableModels).map(normalizeModelId));
 
   if (available.size === 0) {
     throw new Error("No configured models available for routing");
@@ -69,7 +66,7 @@ export function constrainRoutingConfig(
 }
 
 /**
- * Route a request to the cheapest capable model.
+ * Route a request to the configured model chain for the selected tier.
  *
  * 1. Check overrides (large context, structured output)
  * 2. Run rule-based classifier (14 weighted dimensions, <1ms)
@@ -83,8 +80,8 @@ export function route(
   maxOutputTokens: number,
   options: RouterOptions,
 ): RoutingDecision {
-  const { modelPricing } = options;
-  const config = constrainRoutingConfig(options.config, modelPricing);
+  const { availableModels } = options;
+  const config = constrainRoutingConfig(options.config, availableModels);
 
   // Estimate input tokens (~4 chars per token)
   const fullText = `${systemPrompt ?? ""} ${prompt}`;
@@ -111,9 +108,6 @@ export function route(
       "rules",
       `Input exceeds ${config.overrides.maxTokensForceComplex} tokens${reasoningSuffix}`,
       tierConfigs,
-      modelPricing,
-      estimatedTokens,
-      maxOutputTokens,
     );
   }
 
@@ -147,19 +141,9 @@ export function route(
 
   reasoning += reasoningSuffix;
 
-  return selectModel(
-    tier,
-    confidence,
-    method,
-    reasoning,
-    tierConfigs,
-    modelPricing,
-    estimatedTokens,
-    maxOutputTokens,
-  );
+  return selectModel(tier, confidence, method, reasoning, tierConfigs);
 }
 
-export { getFallbackChain, getFallbackChainFiltered, calculateModelCost } from "./selector.js";
+export { getFallbackChain, getFallbackChainFiltered } from "./selector.js";
 export { DEFAULT_ROUTING_CONFIG } from "./config.js";
 export type { RoutingDecision, Tier, RoutingConfig } from "./types.js";
-export type { ModelPricing } from "./selector.js";

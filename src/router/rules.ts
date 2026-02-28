@@ -5,7 +5,7 @@
  * score to a tier using configurable boundaries. Confidence is calibrated
  * via sigmoid — low confidence triggers the fallback classifier.
  *
- * Handles 70-80% of requests in < 1ms with zero cost.
+ * Handles 70-80% of requests in < 1ms.
  */
 
 import type { Tier, ScoringResult, ScoringConfig } from "./types.js";
