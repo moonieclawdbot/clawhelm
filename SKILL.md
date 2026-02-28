@@ -27,13 +27,7 @@ Set provider models in OpenClaw config, then define optional plugin `routing` ov
 
 - `routing.tiers`: per-tier `primary` and `fallback` model chains
 - `routing.classifier`: local fallback classifier tuning options
-- `routing.ecoTiers` / `routing.premiumTiers`: profile-specific tier chains
-
-Profiles remain:
-
-- `auto` (default): base routing with agentic detection
-- `eco`: use `ecoTiers`
-- `premium`: use `premiumTiers`
+- `routing.agenticTiers`: optional agentic-specific tier chains
 
 ## Use
 
@@ -54,8 +48,4 @@ npm run build
 ## Troubleshooting
 
 - If routing fails, confirm model IDs in tier chains exist in `models.providers.clawhelm.models`.
-- If profile behavior seems wrong, verify `ecoTiers` / `premiumTiers` entries.
-
-## Next task note
-
-Further profile quality calibration should be done in a follow-up task; this change intentionally preserves current profile behavior.
+- If agentic behavior seems wrong, verify `routing.agenticTiers` and `routing.overrides.agenticMode`.
