@@ -1,13 +1,10 @@
 {
   "name": "@moonieclawdbot/clawhelm",
   "version": "0.10.4",
-  "description": "Task-aware routing for OpenClaw using local classification and configured models.",
+  "description": "OpenClaw-native local routing plugin using configured model pools and tiered classifier routing.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "clawhelm": "./dist/cli.js"
-  },
   "openclaw": {
     "extensions": [
       "./dist/index.js"
@@ -21,8 +18,8 @@
   },
   "files": [
     "dist",
-    "scripts",
-    "openclaw.plugin.json"
+    "openclaw.plugin.json",
+    "openclaw.security.json"
   ],
   "scripts": {
     "build": "tsup",
@@ -32,32 +29,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "test:resilience:errors": "tsx test/resilience-errors.ts",
-    "test:resilience:stability": "DURATION_MINUTES=5 tsx test/resilience-stability.ts",
-    "test:resilience:stability:full": "DURATION_MINUTES=240 tsx test/resilience-stability.ts",
-    "test:resilience:lifecycle": "tsx test/resilience-lifecycle.ts",
-    "test:resilience:quick": "npm run test:resilience:errors && npm run test:resilience:lifecycle",
-    "test:resilience:full": "npm run test:resilience:errors && npm run test:resilience:lifecycle && npm run test:resilience:stability:full",
-    "test:e2e:tool-ids": "tsx test/e2e-tool-id-sanitization.ts",
-    "test:docker:install": "bash test/run-docker-test.sh",
-    "test:docker:edge-cases": "bash test/docker/run-edge-cases.sh",
-    "test:docker:integration": "docker compose -f test/integration/docker-compose.yml up --build --abort-on-container-exit --exit-code-from integration"
+    "format:check": "prettier --check ."
   },
   "keywords": [
     "llm",
     "router",
-    "smart-routing",
-    "ai",
     "openclaw",
     "clawhelm",
-    "cost-optimization",
-    "openai",
-    "anthropic",
-    "gemini",
-    "deepseek",
-    "usdc-hackathon-winner",
-    "agentic-commerce"
+    "classifier"
   ],
   "author": "moonieclawdbot",
   "license": "MIT",
@@ -65,9 +44,7 @@
     "type": "git",
     "url": "git+https://github.com/moonieclawdbot/clawhelm.git"
   },
-  "dependencies": {
-    "viem": "^2.39.3"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "openclaw": ">=2025.1.0"
   },
@@ -82,7 +59,6 @@
     "openclaw": "latest",
     "prettier": "^3.8.1",
     "tsup": "^8.0.0",
-    "tsx": "^4.21.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.54.0",
     "vitest": "^4.0.18"

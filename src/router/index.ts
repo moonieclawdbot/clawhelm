@@ -17,7 +17,7 @@ export type RouterOptions = {
 };
 
 function normalizeModelId(modelId: string): string {
-  return modelId.trim().toLowerCase().replace(/^blockrun\//, "");
+  return modelId.trim().toLowerCase();
 }
 
 function constrainTierConfig(tierConfig: TierConfig, allowed: Set<string>): TierConfig {

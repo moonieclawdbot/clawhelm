@@ -654,7 +654,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     },
   },
 
-  // Eco tier configs - absolute cheapest (blockrun/eco)
+  // Eco tier configs - absolute cheapest
   ecoTiers: {
     SIMPLE: {
       primary: "nvidia/gpt-oss-120b", // FREE! $0.00/$0.00
@@ -674,7 +674,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     },
   },
 
-  // Premium tier configs - best quality (blockrun/premium)
+  // Premium tier configs - best quality
   // codex=complex coding, kimi=simple coding, sonnet=reasoning/instructions, opus=architecture/PM/audits
   premiumTiers: {
     SIMPLE: {

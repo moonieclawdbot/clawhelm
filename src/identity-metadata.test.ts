@@ -8,12 +8,10 @@ describe("ClawHelm identity metadata", () => {
   it("uses ClawHelm package identity", () => {
     const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
       name: string;
-      bin: Record<string, string>;
       repository: { url: string };
     };
 
     expect(packageJson.name).toBe("@moonieclawdbot/clawhelm");
-    expect(packageJson.bin).toHaveProperty("clawhelm", "./dist/cli.js");
     expect(packageJson.repository.url).toContain("moonieclawdbot/clawhelm");
   });
 

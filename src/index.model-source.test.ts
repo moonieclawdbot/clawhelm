@@ -4,7 +4,7 @@ import plugin from "./index.js";
 import type { ModelDefinitionConfig, OpenClawPluginApi } from "./types.js";
 
 describe("plugin register model source", () => {
-  it("keeps OpenClaw-configured blockrun models unchanged", async () => {
+  it("keeps OpenClaw-configured models unchanged", async () => {
     const configuredModels: ModelDefinitionConfig[] = [
       {
         id: "custom/configured-model",
