@@ -4,14 +4,13 @@ ClawHelm is an **OpenClaw routing plugin**.
 
 It classifies each request into one of four tiers (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and routes to the tier's configured model chain.
 
-> ClawHelm is **not** a model provider. Define models in OpenClaw's model config, then reference those model IDs in ClawHelm routing.
+> ClawHelm is **not** a model provider. It routes among model IDs that OpenClaw already knows (built-in pi-ai catalog and/or custom `models.providers` entries).
 
 ## Prerequisites
 
 - Node.js 20+
 - OpenClaw installed
-- Models configured in `openclaw.json` at:
-  - `models.providers.<providerId>.models`
+- Model IDs available to OpenClaw (either built-in catalog models or custom models under `models.providers.<providerId>.models`)
 
 ## Installation
 
@@ -21,11 +20,12 @@ openclaw plugins install @moonieclawdbot/clawhelm
 
 ## Configuration (exact locations)
 
-### 1) Configure models in `openclaw.json`
+### 1) Ensure model IDs are available to OpenClaw
 
-Models must be defined in OpenClaw core config under:
+You can use either:
 
-- `models.providers.<providerId>.models`
+- built-in OpenClaw provider/catalog model refs (no `models.providers` block required), or
+- custom providers defined under `models.providers.<providerId>.models`.
 
 ### 2) Configure ClawHelm plugin settings in `openclaw.json`
 
@@ -110,8 +110,9 @@ ClawHelm plugin config lives under:
 
 ## Notes
 
-- Every model used in `plugins.clawhelm.routing.*` must exist in `models.providers.<providerId>.models`.
+- Every model used in `plugins.clawhelm.routing.*` must be available to OpenClaw (built-in catalog model or custom `models.providers.<providerId>.models`).
 - Optional: set `plugins.clawhelm.routing.agenticTiers` for agentic workflows.
+- In custom provider model entries, `cost` is optional in OpenClaw. It is shown explicitly in the example for usage/cost observability.
 
 ## Validate
 

@@ -2,7 +2,7 @@
 name: clawhelm
 summary: OpenClaw-native tiered routing plugin that classifies prompts locally and selects configured models
 homepage: https://github.com/moonieclawdbot/clawhelm
-metadata: { "openclaw": { "emoji": "🧭", "requires": { "config": ["models.providers", "plugins.clawhelm.routing"] } } }
+metadata: { "openclaw": { "emoji": "🧭", "requires": { "config": ["plugins.clawhelm.routing"] } } }
 ---
 
 # ClawHelm
@@ -14,7 +14,7 @@ ClawHelm is a router plugin, not a model provider.
 ## Prerequisites
 
 - OpenClaw installed
-- Models configured in `openclaw.json` under `models.providers.<providerId>.models`
+- Model IDs available to OpenClaw (built-in catalog and/or custom `models.providers.<providerId>.models`)
 - Plugin installed
 
 ## Install
@@ -51,5 +51,5 @@ npm run build
 
 ## Troubleshooting
 
-- If routing fails, confirm model IDs in `plugins.clawhelm.routing` exist in `models.providers.<providerId>.models`.
+- If routing fails, confirm model IDs in `plugins.clawhelm.routing` are valid OpenClaw model refs (built-in or custom provider).
 - If agentic behavior seems wrong, verify `routing.agenticTiers` and `routing.overrides.agenticMode`.

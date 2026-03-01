@@ -1,13 +1,13 @@
 {
   "id": "clawhelm",
   "name": "ClawHelm",
-  "description": "Local task-classification router plugin that selects from models defined in openclaw.json (models.providers.<providerId>.models)",
+  "description": "Local task-classification router plugin that selects from OpenClaw-available model IDs (built-in catalog and/or models.providers.<providerId>.models)",
   "configSchema": {
     "type": "object",
     "properties": {
       "routing": {
         "type": "object",
-        "description": "Routing/classification overrides for plugins.clawhelm.routing in openclaw.json. All model IDs must exist under models.providers.<providerId>.models.",
+        "description": "Routing/classification overrides for plugins.clawhelm.routing in openclaw.json. All model IDs must be valid OpenClaw model refs (built-in catalog or models.providers.<providerId>.models).",
         "properties": {
           "classifier": {
             "type": "object",
