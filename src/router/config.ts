@@ -2,7 +2,7 @@
  * Default Routing Config
  *
  * All routing parameters as a TypeScript constant.
- * Operators override via openclaw.yaml plugin config.
+ * Operators override via openclaw.json at plugins.clawhelm.routing.
  *
  * Scoring uses 14 weighted dimensions with sigmoid confidence calibration.
  */

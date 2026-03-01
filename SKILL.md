@@ -2,17 +2,19 @@
 name: clawhelm
 summary: OpenClaw-native tiered routing plugin that classifies prompts locally and selects configured models
 homepage: https://github.com/moonieclawdbot/clawhelm
-metadata: { "openclaw": { "emoji": "🧭", "requires": { "config": ["models.providers.clawhelm"] } } }
+metadata: { "openclaw": { "emoji": "🧭", "requires": { "config": ["models.providers", "plugins.clawhelm.routing"] } } }
 ---
 
 # ClawHelm
 
-ClawHelm classifies each request into a routing tier (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and selects a model chain for that tier from OpenClaw-configured models.
+ClawHelm classifies each request into a routing tier (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and selects a model chain for that tier.
+
+ClawHelm is a router plugin, not a model provider.
 
 ## Prerequisites
 
 - OpenClaw installed
-- Provider models configured at `models.providers.clawhelm.models`
+- Models configured in `openclaw.json` under `models.providers.<providerId>.models`
 - Plugin installed
 
 ## Install
@@ -23,11 +25,13 @@ openclaw plugins install @moonieclawdbot/clawhelm
 
 ## Configure
 
-Set provider models in OpenClaw config, then define optional plugin `routing` overrides:
+In `openclaw.json`:
 
-- `routing.tiers`: per-tier `primary` and `fallback` model chains
-- `routing.classifier`: local fallback classifier tuning options
-- `routing.agenticTiers`: optional agentic-specific tier chains
+- Define model inventory under `models.providers.<providerId>.models`
+- Define ClawHelm routing under `plugins.clawhelm.routing`
+  - `routing.tiers`: per-tier `primary` and `fallback`
+  - `routing.classifier`: local fallback classifier tuning
+  - `routing.agenticTiers`: optional agentic tier chains
 
 ## Use
 
@@ -47,5 +51,5 @@ npm run build
 
 ## Troubleshooting
 
-- If routing fails, confirm model IDs in tier chains exist in `models.providers.clawhelm.models`.
+- If routing fails, confirm model IDs in `plugins.clawhelm.routing` exist in `models.providers.<providerId>.models`.
 - If agentic behavior seems wrong, verify `routing.agenticTiers` and `routing.overrides.agenticMode`.
