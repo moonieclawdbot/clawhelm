@@ -60,7 +60,7 @@ describe("plugin register behavior", () => {
     expect(readdirSync(openclawDir).sort()).toEqual(["openclaw.json"]);
   });
 
-  it("counts OpenClaw models across all configured providers for visibility logs", async () => {
+  it("counts custom OpenClaw models across configured providers for visibility logs", async () => {
     const clawhelmApi = makeApi({
       models: {
         providers: {
@@ -97,7 +97,7 @@ describe("plugin register behavior", () => {
     });
     await plugin.register?.(clawhelmApi);
     expect(clawhelmApi.logger.info).toHaveBeenCalledWith(
-      "ClawHelm plugin registered (detected 2 OpenClaw models across models.providers.*.models)",
+      "ClawHelm plugin registered (detected 2 custom OpenClaw models across models.providers.*.models; built-in catalog models are also supported)",
     );
   });
 });
