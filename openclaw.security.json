@@ -13,7 +13,5 @@
     "Routing decisions are computed locally from prompt metadata and routing config",
     "No additional wallet, payment, or proxy service is required by ClawHelm"
   ],
-  "references": [
-    "https://github.com/moonieclawdbot/clawhelm"
-  ]
+  "references": ["https://github.com/moonieclawdbot/clawhelm"]
 }

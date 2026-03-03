@@ -16,9 +16,10 @@ describe("ClawHelm identity metadata", () => {
   });
 
   it("uses ClawHelm plugin identity", () => {
-    const pluginJson = JSON.parse(
-      readFileSync(join(repoRoot, "openclaw.plugin.json"), "utf8"),
-    ) as { id: string; name: string };
+    const pluginJson = JSON.parse(readFileSync(join(repoRoot, "openclaw.plugin.json"), "utf8")) as {
+      id: string;
+      name: string;
+    };
 
     expect(pluginJson.id).toBe("clawhelm");
     expect(pluginJson.name).toBe("ClawHelm");
