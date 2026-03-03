@@ -27,7 +27,9 @@ openclaw plugins install @moonieclawdbot/clawhelm
 
 In `openclaw.json`:
 
-- Define model inventory under `models.providers.<providerId>.models`
+- Ensure model IDs used by ClawHelm are available to OpenClaw:
+  - built-in catalog model refs, and/or
+  - custom entries under `models.providers.<providerId>.models`
 - Define ClawHelm routing under `plugins.clawhelm.routing`
   - `routing.tiers`: per-tier `primary` and `fallback`
   - `routing.classifier`: local fallback classifier tuning

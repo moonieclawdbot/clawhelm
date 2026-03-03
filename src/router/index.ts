@@ -49,7 +49,10 @@ function constrainTierConfigs(
   };
 }
 
-export function constrainRoutingConfig(config: RoutingConfig, availableModels: Set<string>): RoutingConfig {
+export function constrainRoutingConfig(
+  config: RoutingConfig,
+  availableModels: Set<string>,
+): RoutingConfig {
   const available = new Set(Array.from(availableModels).map(normalizeModelId));
 
   if (available.size === 0) {

@@ -654,7 +654,6 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     },
   },
 
-
   // Agentic tier configs - models that excel at multi-step autonomous tasks
   agenticTiers: {
     SIMPLE: {
