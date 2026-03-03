@@ -1,6 +1,6 @@
 {
   "name": "@moonieclawdbot/clawhelm",
-  "version": "0.10.4",
+  "version": "0.0.1",
   "description": "OpenClaw-native local routing plugin with tiered classifier routing.",
   "type": "module",
   "main": "dist/index.js",
