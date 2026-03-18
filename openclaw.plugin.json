@@ -22,6 +22,11 @@
               "cacheTtlMs": { "type": "number" }
             }
           },
+          "allowedModels": {
+            "type": "array",
+            "description": "Optional strict allowlist of model IDs ClawHelm may select. Entries must exist under models.providers.*.models.",
+            "items": { "type": "string" }
+          },
           "tiers": {
             "type": "object",
             "description": "Tier-to-model mapping for default routing. Each tier selects from a primary/fallback model chain.",
