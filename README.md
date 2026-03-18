@@ -4,6 +4,12 @@ ClawHelm is an **OpenClaw routing plugin**.
 
 It classifies each request into one of four tiers (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and routes to the tier's configured model chain.
 
+Runtime behavior:
+- `before_model_resolve` hook applies the selected model to live OpenClaw requests.
+- Local rules classifier runs first.
+- If local confidence is ambiguous (`tier = null`), ClawHelm falls back to the configured LLM classifier.
+- If both are unavailable, ClawHelm uses `overrides.ambiguousDefaultTier`.
+
 > ClawHelm is **not** a model provider. It routes among model IDs that OpenClaw already knows (built-in pi-ai catalog and/or custom `models.providers` entries).
 
 ## Prerequisites
@@ -112,6 +118,8 @@ ClawHelm plugin config lives under:
 
 - Every model used in `plugins.clawhelm.routing.*` must be available to OpenClaw (built-in catalog model or custom `models.providers.<providerId>.models`).
 - Optional: set `plugins.clawhelm.routing.agenticTiers` for agentic workflows.
+- Optional: set `plugins.clawhelm.routing.allowedModels` to enforce a strict explicit allowlist.
+- ClawHelm normalizes model refs (`trim + lowercase`) for allowlist checks.
 - In custom provider model entries, `cost` is optional in OpenClaw. It is shown explicitly in the example for usage/cost observability.
 
 ## Validate

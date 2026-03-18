@@ -1,11 +1,7 @@
 /**
  * LLM Classifier (Fallback)
  *
- * When the rule-based classifier returns ambiguous,
- * we send a classification request to the configured classifier model.
- *
- * Latency: ~200-400ms
- * Only triggered for ambiguous requests.
+ * Triggered only when the local rules classifier is ambiguous/unavailable.
  */
 
 import type { Tier } from "./types.js";
@@ -35,14 +31,14 @@ type PayFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respon
 
 /**
  * Classify a prompt using the configured classifier LLM.
- * Returns tier and confidence. Defaults to MEDIUM on any failure.
+ * Returns null tier when unavailable/invalid so callers can apply explicit fallback policy.
  */
 export async function classifyByLLM(
   prompt: string,
   config: LLMClassifierConfig,
   payFetch: PayFetch,
   apiBase: string,
-): Promise<{ tier: Tier; confidence: number }> {
+): Promise<{ tier: Tier | null; confidence: number }> {
   const truncated = prompt.slice(0, config.truncationChars);
 
   // Check cache
@@ -69,7 +65,7 @@ export async function classifyByLLM(
     });
 
     if (!response.ok) {
-      return { tier: "MEDIUM", confidence: 0.5 };
+      return { tier: null, confidence: 0 };
     }
 
     const data = (await response.json()) as {
@@ -78,31 +74,31 @@ export async function classifyByLLM(
 
     const content = data.choices?.[0]?.message?.content?.trim().toUpperCase() ?? "";
     const tier = parseTier(content);
+    if (tier === null) {
+      return { tier: null, confidence: 0 };
+    }
 
-    // Cache result
     cache.set(cacheKey, { tier, expires: Date.now() + config.cacheTtlMs });
 
-    // Prune if cache grows too large
     if (cache.size > 1000) {
       pruneCache();
     }
 
     return { tier, confidence: 0.75 };
   } catch {
-    // Any error → safe default
-    return { tier: "MEDIUM", confidence: 0.5 };
+    return { tier: null, confidence: 0 };
   }
 }
 
 /**
  * Parse tier from LLM response. Handles "SIMPLE", "The query is SIMPLE", etc.
  */
-function parseTier(text: string): Tier {
+function parseTier(text: string): Tier | null {
   if (/\bREASONING\b/.test(text)) return "REASONING";
   if (/\bCOMPLEX\b/.test(text)) return "COMPLEX";
   if (/\bMEDIUM\b/.test(text)) return "MEDIUM";
   if (/\bSIMPLE\b/.test(text)) return "SIMPLE";
-  return "MEDIUM"; // safe default
+  return null;
 }
 
 function simpleHash(str: string): string {
