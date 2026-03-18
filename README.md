@@ -5,6 +5,7 @@ ClawHelm is an **OpenClaw routing plugin**.
 It classifies each request into one of four tiers (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) and routes to the tier's configured model chain.
 
 Runtime behavior:
+
 - `before_model_resolve` hook applies the selected model to live OpenClaw requests.
 - Local rules classifier runs first.
 - If local confidence is ambiguous (`tier = null`), ClawHelm falls back to the configured LLM classifier.

@@ -112,11 +112,12 @@ describe("runtime routing", () => {
       },
     });
 
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ choices: [{ message: { content: "COMPLEX" } }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: "COMPLEX" } }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
 
     vi.stubGlobal("fetch", fetchMock);

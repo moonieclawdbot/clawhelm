@@ -92,7 +92,9 @@ function validateAndResolveAllowlist(
   const configured = new Set(configuredModels);
 
   if (configured.size === 0) {
-    errors.push("No models found under models.providers.*.models; cannot enforce ClawHelm routing safely.");
+    errors.push(
+      "No models found under models.providers.*.models; cannot enforce ClawHelm routing safely.",
+    );
     return { allowedModels: new Set(), errors, warnings };
   }
 
@@ -103,14 +105,18 @@ function validateAndResolveAllowlist(
 
   const normalizedAllowlist = dedupeNormalized(configuredAllowlist);
   if (normalizedAllowlist.length === 0) {
-    errors.push("plugins.clawhelm.routing.allowedModels is configured but empty after normalization.");
+    errors.push(
+      "plugins.clawhelm.routing.allowedModels is configured but empty after normalization.",
+    );
     return { allowedModels: new Set(), errors, warnings };
   }
 
   const allowed = normalizedAllowlist.filter((modelId) => configured.has(modelId));
   const unknown = normalizedAllowlist.filter((modelId) => !configured.has(modelId));
   if (unknown.length > 0) {
-    warnings.push(`Ignoring ${unknown.length} allowlist model(s) not found in models.providers.*.models.`);
+    warnings.push(
+      `Ignoring ${unknown.length} allowlist model(s) not found in models.providers.*.models.`,
+    );
   }
 
   if (allowed.length === 0) {
@@ -212,6 +218,7 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
     event: BeforeModelResolveEvent,
     _ctx: AgentContext,
   ): Promise<BeforeModelResolveResult | void> => {
+    void _ctx;
     const prompt = event.prompt ?? "";
     const tokens = estimateTokens(prompt);
 
