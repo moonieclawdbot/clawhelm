@@ -61,6 +61,214 @@ function makeBaseConfig() {
 }
 
 describe("runtime routing", () => {
+  it("splits provider and model overrides for configured codex refs", async () => {
+    const api = makeApi(
+      {
+        models: {
+          providers: {
+            "openai-codex": {
+              baseUrl: "https://api.openai.com/v1",
+              apiKey: "test-key",
+              models: [
+                {
+                  id: "openai-codex/gpt-5.4",
+                  name: "GPT-5.4",
+                  reasoning: true,
+                  input: ["text" as const],
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+                {
+                  id: "openai-codex/gpt-5.3-codex",
+                  name: "GPT-5.3 Codex",
+                  reasoning: true,
+                  input: ["text" as const],
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+              ],
+            },
+          },
+        },
+      },
+      {
+        routing: {
+          tiers: {
+            SIMPLE: { primary: "openai-codex/gpt-5.4", fallback: [] },
+            MEDIUM: { primary: "openai-codex/gpt-5.4", fallback: [] },
+            COMPLEX: { primary: "openai-codex/gpt-5.4", fallback: [] },
+            REASONING: { primary: "openai-codex/gpt-5.4", fallback: ["openai-codex/gpt-5.3-codex"] },
+          },
+          scoring: {
+            confidenceThreshold: 0.99,
+            simpleKeywords: [],
+            technicalKeywords: [],
+            creativeKeywords: [],
+            codeKeywords: [],
+            reasoningKeywords: ["prove", "theorem"],
+            imperativeVerbs: [],
+            constraintIndicators: [],
+            outputFormatKeywords: [],
+            referenceKeywords: [],
+            negationKeywords: [],
+            domainSpecificKeywords: [],
+            agenticTaskKeywords: [],
+          },
+        },
+      },
+    );
+
+    const state = buildRuntimeState(api);
+    const handler = createBeforeModelResolveHandler(state, api);
+
+    const result = await handler({ prompt: "Prove the theorem" }, { trigger: "user" });
+
+    expect(result).toEqual({
+      providerOverride: "openai-codex",
+      modelOverride: "gpt-5.4",
+    });
+  });
+
+  it("preserves multi-segment model IDs for providers like openrouter", async () => {
+    const api = makeApi(
+      {
+        models: {
+          providers: {
+            openrouter: {
+              baseUrl: "https://openrouter.ai/api/v1",
+              apiKey: "test-key",
+              models: [
+                {
+                  id: "openrouter/openai/gpt-oss-120b:free",
+                  name: "GPT OSS 120B Free",
+                  reasoning: false,
+                  input: ["text" as const],
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+              ],
+            },
+          },
+        },
+      },
+      {
+        routing: {
+          tiers: {
+            SIMPLE: { primary: "openrouter/openai/gpt-oss-120b:free", fallback: [] },
+            MEDIUM: { primary: "openrouter/openai/gpt-oss-120b:free", fallback: [] },
+            COMPLEX: { primary: "openrouter/openai/gpt-oss-120b:free", fallback: [] },
+            REASONING: { primary: "openrouter/openai/gpt-oss-120b:free", fallback: [] },
+          },
+          scoring: {
+            confidenceThreshold: 0.1,
+          },
+        },
+      },
+    );
+
+    const state = buildRuntimeState(api);
+    const handler = createBeforeModelResolveHandler(state, api);
+
+    const result = await handler({ prompt: "hello" }, { trigger: "user" });
+
+    expect(result).toEqual({
+      providerOverride: "openrouter",
+      modelOverride: "openai/gpt-oss-120b:free",
+    });
+  });
+
+  it("projects tier fallbacks into OpenClaw agent defaults", async () => {
+    const api = makeApi(
+      {
+        agents: {
+          defaults: {
+            model: {
+              primary: "openai/gpt-4o-mini",
+              fallbacks: ["openai/gpt-4o"],
+            },
+          },
+        },
+        models: {
+          providers: {
+            openai: {
+              baseUrl: "https://api.openai.com",
+              apiKey: "test-key",
+              models: [
+                {
+                  id: "openai/gpt-4o-mini",
+                  name: "GPT-4o mini",
+                  reasoning: false,
+                  input: ["text" as const],
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+                {
+                  id: "openai/gpt-5.3-codex",
+                  name: "GPT-5.3 Codex",
+                  reasoning: true,
+                  input: ["text" as const],
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+                {
+                  id: "openai/gpt-4o",
+                  name: "GPT-4o",
+                  reasoning: false,
+                  input: ["text" as const],
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 128000,
+                  maxTokens: 4096,
+                },
+              ],
+            },
+          },
+        },
+      },
+      {
+        routing: {
+          tiers: {
+            SIMPLE: { primary: "openai/gpt-4o-mini", fallback: [] },
+            MEDIUM: { primary: "openai/gpt-4o-mini", fallback: [] },
+            COMPLEX: { primary: "openai/gpt-4o-mini", fallback: [] },
+            REASONING: {
+              primary: "openai/gpt-5.3-codex",
+              fallback: ["openai/gpt-4o", "openai/not-configured"],
+            },
+          },
+          scoring: {
+            confidenceThreshold: 0.99,
+            simpleKeywords: [],
+            technicalKeywords: [],
+            creativeKeywords: [],
+            codeKeywords: [],
+            reasoningKeywords: ["prove", "theorem"],
+            imperativeVerbs: [],
+            constraintIndicators: [],
+            outputFormatKeywords: [],
+            referenceKeywords: [],
+            negationKeywords: [],
+            domainSpecificKeywords: [],
+            agenticTaskKeywords: [],
+          },
+        },
+      },
+    );
+
+    const state = buildRuntimeState(api);
+    const handler = createBeforeModelResolveHandler(state, api);
+
+    await handler({ prompt: "Prove the theorem" }, { trigger: "user" });
+
+    expect(api.config.agents?.defaults?.model).toEqual({
+      primary: "openai/gpt-5.3-codex",
+      fallbacks: ["openai/gpt-4o"],
+    });
+  });
   it("applies model override from before_model_resolve hook", async () => {
     const api = makeApi(makeBaseConfig(), {
       routing: {
@@ -93,7 +301,8 @@ describe("runtime routing", () => {
 
     const result = await handler({ prompt: "Prove the theorem" }, { trigger: "user" });
 
-    expect(result?.modelOverride).toBe("openai/gpt-5.3-codex");
+    expect(result?.providerOverride).toBe("openai");
+    expect(result?.modelOverride).toBe("gpt-5.3-codex");
   });
 
   it("uses LLM fallback when local classifier is ambiguous", async () => {
@@ -127,7 +336,8 @@ describe("runtime routing", () => {
     const result = await handler({ prompt: "neutral prompt" }, { trigger: "heartbeat" });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result?.modelOverride).toBe("openai/gpt-5.3-codex");
+    expect(result?.providerOverride).toBe("openai");
+    expect(result?.modelOverride).toBe("gpt-5.3-codex");
     vi.unstubAllGlobals();
   });
 

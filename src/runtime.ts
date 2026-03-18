@@ -7,7 +7,10 @@ import type { ModelProviderConfig, OpenClawPluginApi } from "./types.js";
 
 type BeforeModelResolveEvent = { prompt: string };
 type AgentContext = { trigger?: string; channelId?: string; sessionKey?: string; agentId?: string };
-type BeforeModelResolveResult = { modelOverride?: string };
+type BeforeModelResolveResult = {
+  providerOverride?: string;
+  modelOverride?: string;
+};
 
 type RuntimeState = {
   config: RoutingConfig;
@@ -193,6 +196,45 @@ function estimateTokens(prompt: string): number {
   return Math.max(1, Math.ceil(prompt.length / 4));
 }
 
+function resolveConfiguredModelSelection(modelRef: string): { provider: string; model: string } | null {
+  const trimmed = modelRef.trim();
+  if (!trimmed) return null;
+
+  const slash = trimmed.indexOf("/");
+  if (slash === -1) return null;
+
+  const provider = trimmed.slice(0, slash).trim().toLowerCase();
+  const model = trimmed.slice(slash + 1).trim();
+  if (!provider || !model) return null;
+
+  return { provider, model };
+}
+
+function applyTierFallbacksToAgentDefaults(
+  api: OpenClawPluginApi,
+  tierConfig: TierConfig,
+  allowedModels: Set<string>,
+): string[] {
+  const validFallbacks = tierConfig.fallback
+    .map(normalizeModelRef)
+    .filter((modelId) => allowedModels.has(modelId));
+
+  const agents = (api.config.agents ??= {});
+  const defaults = ((agents.defaults ??= {}) as Record<string, unknown>);
+  const currentModel =
+    defaults.model && typeof defaults.model === "object"
+      ? (defaults.model as Record<string, unknown>)
+      : {};
+
+  defaults.model = {
+    ...currentModel,
+    primary: tierConfig.primary,
+    fallbacks: validFallbacks,
+  };
+
+  return validFallbacks;
+}
+
 export function buildRuntimeState(api: OpenClawPluginApi): RuntimeState {
   const routingConfig = mergeRoutingConfig(DEFAULT_ROUTING_CONFIG, getRoutingOverride(api));
   const { normalizedModelIds, providerByModel } = collectConfiguredModels(api);
@@ -246,6 +288,7 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
 
     const decision = selectModel(tier, confidence, method, notes.join(" | "), tierConfigs);
     const selected = normalizeModelRef(decision.model);
+    const tierConfig = tierConfigs[tier];
 
     if (!state.allowedModels.has(selected)) {
       api.logger.error(
@@ -254,10 +297,23 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
       return;
     }
 
+    const resolvedSelection = resolveConfiguredModelSelection(decision.model);
+    if (!resolvedSelection) {
+      api.logger.error(
+        `[clawhelm] Selected model "${decision.model}" could not be parsed into provider/model overrides; suppressing override.`,
+      );
+      return;
+    }
+
+    const appliedFallbacks = applyTierFallbacksToAgentDefaults(api, tierConfig, state.allowedModels);
+
     api.logger.debug?.(
-      `[clawhelm] route tier=${decision.tier} method=${decision.method} model=${decision.model} confidence=${decision.confidence.toFixed(2)}`,
+      `[clawhelm] route tier=${decision.tier} method=${decision.method} model=${decision.model} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} confidence=${decision.confidence.toFixed(2)}`,
     );
 
-    return { modelOverride: decision.model };
+    return {
+      providerOverride: resolvedSelection.provider,
+      modelOverride: resolvedSelection.model,
+    };
   };
 }
