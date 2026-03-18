@@ -34,12 +34,12 @@ describe("classifyByLLM", () => {
     expect(payFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to MEDIUM when response is non-OK", async () => {
+  it("returns null tier when response is non-OK", async () => {
     const payFetch = vi.fn(async () => new Response("oops", { status: 500 }));
 
     const result = await classifyByLLM("Classify me", config, payFetch, "https://api.example.com");
 
-    expect(result).toEqual({ tier: "MEDIUM", confidence: 0.5 });
+    expect(result).toEqual({ tier: null, confidence: 0 });
   });
 
   it("uses cache for repeated prompts", async () => {
