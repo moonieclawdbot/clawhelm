@@ -1,6 +1,7 @@
 import type { OpenClawPluginApi, OpenClawPluginDefinition } from "./types.js";
 import { clawhelmProvider } from "./provider.js";
 import { VERSION } from "./version.js";
+import { buildRuntimeState, createBeforeModelResolveHandler } from "./runtime.js";
 
 function isCompletionMode(): boolean {
   return process.argv.some((arg, i) => arg === "completion" && i >= 1 && i <= 3);
@@ -13,12 +14,11 @@ const plugin: OpenClawPluginDefinition = {
   version: VERSION,
 
   async register(api: OpenClawPluginApi) {
+    api.registerProvider(clawhelmProvider);
+
     if (isCompletionMode()) {
-      api.registerProvider(clawhelmProvider);
       return;
     }
-
-    api.registerProvider(clawhelmProvider);
 
     const providers = api.config.models?.providers ?? {};
     const customConfiguredModelCount = Object.values(providers).reduce((count, provider) => {
@@ -26,11 +26,27 @@ const plugin: OpenClawPluginDefinition = {
       return count + (Array.isArray(models) ? models.length : 0);
     }, 0);
 
-    api.logger.info(
-      customConfiguredModelCount > 0
-        ? `ClawHelm plugin registered (detected ${customConfiguredModelCount} custom OpenClaw models across models.providers.*.models; built-in catalog models are also supported)`
-        : "ClawHelm plugin registered (no custom models detected under models.providers.*.models; built-in catalog models are still supported)",
-    );
+    try {
+      const runtimeState = buildRuntimeState(api);
+      api.on("before_model_resolve", createBeforeModelResolveHandler(runtimeState, api), {
+        priority: 50,
+      });
+      api.logger.info(
+        `ClawHelm plugin registered (routing active; ${runtimeState.allowedModels.size} constrained model(s) available)`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      api.logger.error(`[clawhelm] routing disabled: ${message}`);
+      api.logger.warn(
+        "ClawHelm provider remains registered, but runtime model overrides are disabled until config is fixed.",
+      );
+    }
+
+    if (customConfiguredModelCount === 0) {
+      api.logger.warn(
+        "No custom models detected under models.providers.*.models. ClawHelm routing requires configured model IDs to enforce allowlist constraints.",
+      );
+    }
   },
 };
 
