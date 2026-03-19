@@ -6,7 +6,8 @@ It classifies each request into one of four tiers (`SIMPLE`, `MEDIUM`, `COMPLEX`
 
 Runtime behavior:
 
-- `before_model_resolve` hook applies the selected model to live OpenClaw requests.
+- `before_model_resolve` hook applies request-scoped provider/model overrides to live OpenClaw requests.
+- ClawHelm does not rewrite persisted OpenClaw config or `agents.defaults.model` when routing a request.
 - Local rules classifier runs first.
 - If local confidence is ambiguous (`tier = null`), ClawHelm falls back to the configured LLM classifier.
 - If both are unavailable, ClawHelm uses `overrides.ambiguousDefaultTier`.
@@ -120,6 +121,7 @@ ClawHelm plugin config lives under:
 - Every model used in `plugins.clawhelm.routing.*` must be available to OpenClaw (built-in catalog model or custom `models.providers.<providerId>.models`).
 - Optional: set `plugins.clawhelm.routing.agenticTiers` for agentic workflows.
 - Optional: set `plugins.clawhelm.routing.allowedModels` to enforce a strict explicit allowlist.
+- Tier fallbacks remain part of ClawHelm's routing metadata/logging; they are not written back into persisted OpenClaw defaults.
 - ClawHelm normalizes model refs (`trim + lowercase`) for allowlist checks.
 - In custom provider model entries, `cost` is optional in OpenClaw. It is shown explicitly in the example for usage/cost observability.
 

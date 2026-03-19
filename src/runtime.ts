@@ -210,29 +210,10 @@ function resolveConfiguredModelSelection(modelRef: string): { provider: string; 
   return { provider, model };
 }
 
-function applyTierFallbacksToAgentDefaults(
-  api: OpenClawPluginApi,
-  tierConfig: TierConfig,
-  allowedModels: Set<string>,
-): string[] {
-  const validFallbacks = tierConfig.fallback
+function resolveAllowedTierFallbacks(tierConfig: TierConfig, allowedModels: Set<string>): string[] {
+  return tierConfig.fallback
     .map(normalizeModelRef)
     .filter((modelId) => allowedModels.has(modelId));
-
-  const agents = (api.config.agents ??= {});
-  const defaults = ((agents.defaults ??= {}) as Record<string, unknown>);
-  const currentModel =
-    defaults.model && typeof defaults.model === "object"
-      ? (defaults.model as Record<string, unknown>)
-      : {};
-
-  defaults.model = {
-    ...currentModel,
-    primary: tierConfig.primary,
-    fallbacks: validFallbacks,
-  };
-
-  return validFallbacks;
 }
 
 export function buildRuntimeState(api: OpenClawPluginApi): RuntimeState {
@@ -305,10 +286,10 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
       return;
     }
 
-    const appliedFallbacks = applyTierFallbacksToAgentDefaults(api, tierConfig, state.allowedModels);
+    const appliedFallbacks = resolveAllowedTierFallbacks(tierConfig, state.allowedModels);
 
     api.logger.debug?.(
-      `[clawhelm] route tier=${decision.tier} method=${decision.method} model=${decision.model} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} confidence=${decision.confidence.toFixed(2)}`,
+      `[clawhelm] route tier=${decision.tier} method=${decision.method} model=${decision.model} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} confidence=${decision.confidence.toFixed(2)} note=request-scoped-overrides-only`,
     );
 
     return {

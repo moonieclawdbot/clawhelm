@@ -180,7 +180,7 @@ describe("runtime routing", () => {
     });
   });
 
-  it("projects tier fallbacks into OpenClaw agent defaults", async () => {
+  it("keeps OpenClaw agent defaults unchanged while routing request-scoped overrides", async () => {
     const api = makeApi(
       {
         agents: {
@@ -262,12 +262,19 @@ describe("runtime routing", () => {
     const state = buildRuntimeState(api);
     const handler = createBeforeModelResolveHandler(state, api);
 
-    await handler({ prompt: "Prove the theorem" }, { trigger: "user" });
+    const result = await handler({ prompt: "Prove the theorem" }, { trigger: "user" });
 
-    expect(api.config.agents?.defaults?.model).toEqual({
-      primary: "openai/gpt-5.3-codex",
+    expect(result).toEqual({
+      providerOverride: "openai",
+      modelOverride: "gpt-5.3-codex",
+    });
+    expect((api.config.agents as { defaults?: { model?: unknown } } | undefined)?.defaults?.model).toEqual({
+      primary: "openai/gpt-4o-mini",
       fallbacks: ["openai/gpt-4o"],
     });
+    expect(api.logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("note=request-scoped-overrides-only"),
+    );
   });
   it("applies model override from before_model_resolve hook", async () => {
     const api = makeApi(makeBaseConfig(), {
