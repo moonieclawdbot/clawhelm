@@ -13,7 +13,7 @@ const plugin: OpenClawPluginDefinition = {
   description: "OpenClaw-native local routing/classification plugin",
   version: VERSION,
 
-  async register(api: OpenClawPluginApi) {
+  register(api: OpenClawPluginApi) {
     api.registerProvider(clawhelmProvider);
 
     if (isCompletionMode()) {
