@@ -101,8 +101,6 @@ describe("plugin register behavior", () => {
       expect.any(Function),
       expect.objectContaining({ priority: 50 }),
     );
-    expect(clawhelmApi.logger.info).toHaveBeenCalledWith(
-      "ClawHelm plugin registered (routing active; 2 constrained model(s) available)",
-    );
+    expect(clawhelmApi.logger.info).not.toHaveBeenCalled();
   });
 });

@@ -31,9 +31,6 @@ const plugin: OpenClawPluginDefinition = {
       api.on("before_model_resolve", createBeforeModelResolveHandler(runtimeState, api), {
         priority: 50,
       });
-      api.logger.info(
-        `ClawHelm plugin registered (routing active; ${runtimeState.allowedModels.size} constrained model(s) available)`,
-      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       api.logger.error(`[clawhelm] routing disabled: ${message}`);

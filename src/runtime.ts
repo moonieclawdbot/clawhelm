@@ -137,22 +137,73 @@ function resolveTierConfigs(config: RoutingConfig, agenticScore: number): Record
   return useAgentic ? config.agenticTiers! : config.tiers;
 }
 
+function resolveFallbackClassifierModel(
+  config: RoutingConfig,
+  state: RuntimeState,
+): { model: string; source: string } | null {
+  const candidates = [
+    { model: normalizeModelRef(config.classifier.llmModel), source: "configured classifier" },
+    { model: normalizeModelRef(config.tiers.SIMPLE.primary), source: "SIMPLE tier primary" },
+    { model: normalizeModelRef(config.tiers.MEDIUM.primary), source: "MEDIUM tier primary" },
+    { model: normalizeModelRef(config.tiers.COMPLEX.primary), source: "COMPLEX tier primary" },
+    { model: normalizeModelRef(config.tiers.REASONING.primary), source: "REASONING tier primary" },
+  ];
+
+  if (config.agenticTiers) {
+    candidates.push(
+      {
+        model: normalizeModelRef(config.agenticTiers.SIMPLE.primary),
+        source: "agentic SIMPLE tier primary",
+      },
+      {
+        model: normalizeModelRef(config.agenticTiers.MEDIUM.primary),
+        source: "agentic MEDIUM tier primary",
+      },
+      {
+        model: normalizeModelRef(config.agenticTiers.COMPLEX.primary),
+        source: "agentic COMPLEX tier primary",
+      },
+      {
+        model: normalizeModelRef(config.agenticTiers.REASONING.primary),
+        source: "agentic REASONING tier primary",
+      },
+    );
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate.model || !state.allowedModels.has(candidate.model)) continue;
+    const provider = state.providerByModel.get(candidate.model);
+    if (provider?.baseUrl && provider.apiKey) {
+      return candidate;
+    }
+  }
+
+  for (const model of state.allowedModels) {
+    const provider = state.providerByModel.get(model);
+    if (provider?.baseUrl && provider.apiKey) {
+      return { model, source: "first allowed model with credentials" };
+    }
+  }
+
+  return null;
+}
+
 async function llmFallbackClassify(
   prompt: string,
   config: RoutingConfig,
   state: RuntimeState,
 ): Promise<{ tier: Tier | null; method: "llm"; confidence: number; note: string }> {
-  const classifierModel = normalizeModelRef(config.classifier.llmModel);
-  if (!state.allowedModels.has(classifierModel)) {
+  const classifier = resolveFallbackClassifierModel(config, state);
+  if (!classifier) {
     return {
       tier: null,
       method: "llm",
       confidence: 0,
-      note: "LLM fallback skipped (classifier model blocked by allowlist)",
+      note: "LLM fallback unavailable (no allowed classifier model with baseUrl/apiKey)",
     };
   }
 
-  const provider = state.providerByModel.get(classifierModel);
+  const provider = state.providerByModel.get(classifier.model);
   if (!provider?.baseUrl || !provider.apiKey) {
     return {
       tier: null,
@@ -165,7 +216,7 @@ async function llmFallbackClassify(
   const result = await classifyByLLM(
     prompt,
     {
-      model: classifierModel,
+      model: classifier.model,
       maxTokens: config.classifier.llmMaxTokens,
       temperature: config.classifier.llmTemperature,
       truncationChars: config.classifier.promptTruncationChars,
@@ -188,7 +239,9 @@ async function llmFallbackClassify(
     tier: result.tier,
     method: "llm",
     confidence: result.confidence,
-    note: result.tier ? "LLM fallback classification" : "LLM fallback unavailable",
+    note: result.tier
+      ? `LLM fallback classification via ${classifier.model} (${classifier.source})`
+      : `LLM fallback unavailable via ${classifier.model} (${classifier.source})`,
   };
 }
 
@@ -289,7 +342,7 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
     const appliedFallbacks = resolveAllowedTierFallbacks(tierConfig, state.allowedModels);
 
     api.logger.debug?.(
-      `[clawhelm] route tier=${decision.tier} method=${decision.method} model=${decision.model} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} confidence=${decision.confidence.toFixed(2)} note=request-scoped-overrides-only`,
+      `[clawhelm] selected model=${decision.model} tier=${decision.tier} method=${decision.method} confidence=${decision.confidence.toFixed(2)} why=${JSON.stringify(decision.reasoning)} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} note=request-scoped-overrides-only`,
     );
 
     return {

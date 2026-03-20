@@ -12,9 +12,6 @@ import type { Tier, ScoringResult, ScoringConfig } from "./types.js";
 
 type DimensionScore = { name: string; score: number; signal: string | null };
 
-// ─── Dimension Scorers ───
-// Each returns a score in [-1, 1] and an optional signal string.
-
 function scoreTokenCount(
   estimatedTokens: number,
   thresholds: { simple: number; complex: number },
@@ -71,15 +68,6 @@ function scoreQuestionComplexity(prompt: string): DimensionScore {
   return { name: "questionComplexity", score: 0, signal: null };
 }
 
-/**
- * Score agentic task indicators.
- * Returns agenticScore (0-1) based on keyword matches:
- * - 4+ matches = 1.0 (high agentic)
- * - 3 matches = 0.6 (moderate agentic, can trigger agentic tiers)
- * - 1-2 matches = 0.2 (low agentic)
- *
- * Thresholds raised because common keywords were pruned from the list.
- */
 function scoreAgenticTask(
   text: string,
   keywords: string[],
@@ -96,7 +84,6 @@ function scoreAgenticTask(
     }
   }
 
-  // Threshold-based scoring (raised thresholds after keyword pruning)
   if (matchCount >= 4) {
     return {
       dimensionScore: {
@@ -106,7 +93,8 @@ function scoreAgenticTask(
       },
       agenticScore: 1.0,
     };
-  } else if (matchCount >= 3) {
+  }
+  if (matchCount >= 3) {
     return {
       dimensionScore: {
         name: "agenticTask",
@@ -115,7 +103,8 @@ function scoreAgenticTask(
       },
       agenticScore: 0.6,
     };
-  } else if (matchCount >= 1) {
+  }
+  if (matchCount >= 1) {
     return {
       dimensionScore: {
         name: "agenticTask",
@@ -132,31 +121,25 @@ function scoreAgenticTask(
   };
 }
 
-// ─── Main Classifier ───
-
 export function classifyByRules(
   prompt: string,
   systemPrompt: string | undefined,
   estimatedTokens: number,
   config: ScoringConfig,
 ): ScoringResult {
-  const text = `${systemPrompt ?? ""} ${prompt}`.toLowerCase();
-  // User prompt only — used for reasoning markers (system prompt shouldn't influence complexity)
+  void systemPrompt;
   const userText = prompt.toLowerCase();
 
-  // Score all 14 dimensions
   const dimensions: DimensionScore[] = [
-    // Original 8 dimensions
     scoreTokenCount(estimatedTokens, config.tokenCountThresholds),
     scoreKeywordMatch(
-      text,
+      userText,
       config.codeKeywords,
       "codePresence",
       "code",
       { low: 1, high: 2 },
       { none: 0, low: 0.5, high: 1.0 },
     ),
-    // Reasoning markers use USER prompt only — system prompt "step by step" shouldn't trigger reasoning
     scoreKeywordMatch(
       userText,
       config.reasoningKeywords,
@@ -166,7 +149,7 @@ export function classifyByRules(
       { none: 0, low: 0.7, high: 1.0 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.technicalKeywords,
       "technicalTerms",
       "technical",
@@ -174,7 +157,7 @@ export function classifyByRules(
       { none: 0, low: 0.5, high: 1.0 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.creativeKeywords,
       "creativeMarkers",
       "creative",
@@ -182,19 +165,17 @@ export function classifyByRules(
       { none: 0, low: 0.5, high: 0.7 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.simpleKeywords,
       "simpleIndicators",
       "simple",
       { low: 1, high: 2 },
       { none: 0, low: -1.0, high: -1.0 },
     ),
-    scoreMultiStep(text),
+    scoreMultiStep(userText),
     scoreQuestionComplexity(prompt),
-
-    // 6 new dimensions
     scoreKeywordMatch(
-      text,
+      userText,
       config.imperativeVerbs,
       "imperativeVerbs",
       "imperative",
@@ -202,7 +183,7 @@ export function classifyByRules(
       { none: 0, low: 0.3, high: 0.5 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.constraintIndicators,
       "constraintCount",
       "constraints",
@@ -210,7 +191,7 @@ export function classifyByRules(
       { none: 0, low: 0.3, high: 0.7 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.outputFormatKeywords,
       "outputFormat",
       "format",
@@ -218,7 +199,7 @@ export function classifyByRules(
       { none: 0, low: 0.4, high: 0.7 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.referenceKeywords,
       "referenceComplexity",
       "references",
@@ -226,7 +207,7 @@ export function classifyByRules(
       { none: 0, low: 0.3, high: 0.5 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.negationKeywords,
       "negationComplexity",
       "negation",
@@ -234,7 +215,7 @@ export function classifyByRules(
       { none: 0, low: 0.3, high: 0.5 },
     ),
     scoreKeywordMatch(
-      text,
+      userText,
       config.domainSpecificKeywords,
       "domainSpecificity",
       "domain-specific",
@@ -243,44 +224,34 @@ export function classifyByRules(
     ),
   ];
 
-  // Score agentic task indicators
-  const agenticResult = scoreAgenticTask(text, config.agenticTaskKeywords);
+  const agenticResult = scoreAgenticTask(userText, config.agenticTaskKeywords);
   dimensions.push(agenticResult.dimensionScore);
   const agenticScore = agenticResult.agenticScore;
 
-  // Collect signals
   const signals = dimensions.filter((d) => d.signal !== null).map((d) => d.signal!);
 
-  // Compute weighted score
-  const weights = config.dimensionWeights;
   let weightedScore = 0;
   for (const d of dimensions) {
-    const w = weights[d.name] ?? 0;
+    const w = config.dimensionWeights[d.name] ?? 0;
     weightedScore += d.score * w;
   }
 
-  // Count reasoning markers for override — only check USER prompt, not system prompt
-  // This prevents system prompts with "step by step" from triggering REASONING for simple queries
   const reasoningMatches = config.reasoningKeywords.filter((kw) =>
     userText.includes(kw.toLowerCase()),
   );
 
-  // Direct reasoning override: 2+ reasoning markers = high confidence REASONING
   if (reasoningMatches.length >= 2) {
-    const confidence = calibrateConfidence(
-      Math.max(weightedScore, 0.3), // ensure positive for confidence calc
-      config.confidenceSteepness,
-    );
+    const confidence = calibrateConfidence(Math.max(weightedScore, 0.3), config.confidenceSteepness);
     return {
       score: weightedScore,
       tier: "REASONING",
       confidence: Math.max(confidence, 0.85),
       signals,
       agenticScore,
+      dimensions,
     };
   }
 
-  // Map weighted score to tier using boundaries
   const { simpleMedium, mediumComplex, complexReasoning } = config.tierBoundaries;
   let tier: Tier;
   let distanceFromBoundary: number;
@@ -293,30 +264,21 @@ export function classifyByRules(
     distanceFromBoundary = Math.min(weightedScore - simpleMedium, mediumComplex - weightedScore);
   } else if (weightedScore < complexReasoning) {
     tier = "COMPLEX";
-    distanceFromBoundary = Math.min(
-      weightedScore - mediumComplex,
-      complexReasoning - weightedScore,
-    );
+    distanceFromBoundary = Math.min(weightedScore - mediumComplex, complexReasoning - weightedScore);
   } else {
     tier = "REASONING";
     distanceFromBoundary = weightedScore - complexReasoning;
   }
 
-  // Calibrate confidence via sigmoid of distance from nearest boundary
   const confidence = calibrateConfidence(distanceFromBoundary, config.confidenceSteepness);
 
-  // If confidence is below threshold → ambiguous
   if (confidence < config.confidenceThreshold) {
-    return { score: weightedScore, tier: null, confidence, signals, agenticScore };
+    return { score: weightedScore, tier: null, confidence, signals, agenticScore, dimensions };
   }
 
-  return { score: weightedScore, tier, confidence, signals, agenticScore };
+  return { score: weightedScore, tier, confidence, signals, agenticScore, dimensions };
 }
 
-/**
- * Sigmoid confidence calibration.
- * Maps distance from tier boundary to [0.5, 1.0] confidence range.
- */
 function calibrateConfidence(distance: number, steepness: number): number {
   return 1 / (1 + Math.exp(-steepness * distance));
 }

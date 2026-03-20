@@ -16,6 +16,7 @@ export type ScoringResult = {
   confidence: number; // sigmoid-calibrated [0, 1]
   signals: string[];
   agenticScore?: number; // 0-1 agentic task score for switching to agentic tiers
+  dimensions?: Array<{ name: string; score: number; signal: string | null }>;
 };
 
 export type RoutingDecision = {

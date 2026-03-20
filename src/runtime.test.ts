@@ -275,6 +275,7 @@ describe("runtime routing", () => {
     expect(api.logger.debug).toHaveBeenCalledWith(
       expect.stringContaining("note=request-scoped-overrides-only"),
     );
+    expect(api.logger.debug).toHaveBeenCalledWith(expect.stringContaining("why="));
   });
   it("applies model override from before_model_resolve hook", async () => {
     const api = makeApi(makeBaseConfig(), {
@@ -345,6 +346,48 @@ describe("runtime routing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result?.providerOverride).toBe("openai");
     expect(result?.modelOverride).toBe("gpt-5.3-codex");
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to an allowed configured classifier model when the preferred classifier is unavailable", async () => {
+    const api = makeApi(makeBaseConfig(), {
+      routing: {
+        classifier: { llmModel: "openai/not-configured", llmMaxTokens: 10, llmTemperature: 0 },
+        tiers: {
+          SIMPLE: { primary: "openai/gpt-4o-mini", fallback: [] },
+          MEDIUM: { primary: "openai/gpt-4o-mini", fallback: [] },
+          COMPLEX: { primary: "openai/gpt-5.3-codex", fallback: [] },
+          REASONING: { primary: "openai/gpt-5.3-codex", fallback: [] },
+        },
+        scoring: {
+          confidenceThreshold: 0.999999,
+        },
+      },
+    });
+
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: "COMPLEX" } }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+    const state = buildRuntimeState(api);
+    const handler = createBeforeModelResolveHandler(state, api);
+
+    const result = await handler(
+      { prompt: "neutral prompt fallback classifier" },
+      { trigger: "heartbeat" },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result?.providerOverride).toBe("openai");
+    expect(result?.modelOverride).toBe("gpt-5.3-codex");
+    expect(api.logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("LLM fallback classification via openai/gpt-4o-mini (SIMPLE tier primary)"),
+    );
     vi.unstubAllGlobals();
   });
 
