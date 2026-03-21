@@ -79,10 +79,16 @@ export type OverridesConfig = {
   agenticMode?: boolean;
 };
 
+export type DebugConfig = {
+  enabled?: boolean;
+  logPath?: string;
+};
+
 export type RoutingConfig = {
   version: string;
   classifier: ClassifierConfig;
   scoring: ScoringConfig;
+  debug?: DebugConfig;
   /** Optional user-defined model shortcuts for explicit model selection. */
   aliases?: Record<string, string>;
   /** Optional explicit model allowlist. Must reference OpenClaw-configured model IDs. */

@@ -21,6 +21,11 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
     cacheTtlMs: 3_600_000, // 1 hour
   },
 
+  debug: {
+    enabled: false,
+    logPath: ".openclaw/logs/clawhelm-debug.jsonl",
+  },
+
   scoring: {
     tokenCountThresholds: { simple: 50, complex: 500 },
 

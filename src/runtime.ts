@@ -1,3 +1,5 @@
+import { mkdirSync, appendFileSync } from "node:fs";
+import path from "node:path";
 import { DEFAULT_ROUTING_CONFIG } from "./router/config.js";
 import { classifyByLLM } from "./router/llm-classifier.js";
 import { classifyByRules } from "./router/rules.js";
@@ -16,6 +18,7 @@ type RuntimeState = {
   config: RoutingConfig;
   allowedModels: Set<string>;
   providerByModel: Map<string, ModelProviderConfig>;
+  debugLogPath: string;
 };
 
 function normalizeModelRef(modelRef: string): string {
@@ -26,6 +29,31 @@ function dedupeNormalized(values: string[]): string[] {
   return Array.from(new Set(values.map(normalizeModelRef).filter(Boolean)));
 }
 
+function resolveDebugLogPath(api: OpenClawPluginApi, config: RoutingConfig): string {
+  const configuredPath = config.debug?.logPath?.trim() || ".openclaw/logs/clawhelm-debug.jsonl";
+  return path.isAbsolute(configuredPath) ? configuredPath : api.resolvePath(configuredPath);
+}
+
+function writeDebugLog(
+  state: RuntimeState,
+  api: OpenClawPluginApi,
+  entry: Record<string, unknown>,
+): void {
+  if (!state.config.debug?.enabled) return;
+
+  try {
+    mkdirSync(path.dirname(state.debugLogPath), { recursive: true });
+    appendFileSync(
+      state.debugLogPath,
+      `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    api.logger.warn(`[clawhelm] debug log write failed: ${message}`);
+  }
+}
+
 function mergeRoutingConfig(base: RoutingConfig, override: unknown): RoutingConfig {
   const o = (override ?? {}) as Partial<RoutingConfig>;
   return {
@@ -33,6 +61,7 @@ function mergeRoutingConfig(base: RoutingConfig, override: unknown): RoutingConf
     ...o,
     classifier: { ...base.classifier, ...(o.classifier ?? {}) },
     scoring: { ...base.scoring, ...(o.scoring ?? {}) },
+    debug: { ...(base.debug ?? {}), ...((o.debug as Record<string, unknown> | undefined) ?? {}) },
     overrides: { ...base.overrides, ...(o.overrides ?? {}) },
     tiers: {
       SIMPLE: { ...base.tiers.SIMPLE, ...(o.tiers?.SIMPLE ?? {}) },
@@ -286,68 +315,111 @@ export function buildRuntimeState(api: OpenClawPluginApi): RuntimeState {
     config: routingConfig,
     allowedModels: allowlistValidation.allowedModels,
     providerByModel,
+    debugLogPath: resolveDebugLogPath(api, routingConfig),
   };
 }
 
 export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenClawPluginApi) {
   return async (
     event: BeforeModelResolveEvent,
-    _ctx: AgentContext,
+    ctx: AgentContext,
   ): Promise<BeforeModelResolveResult | void> => {
-    void _ctx;
     const prompt = event.prompt ?? "";
     const tokens = estimateTokens(prompt);
-
-    const rules = classifyByRules(prompt, undefined, tokens, state.config.scoring);
-    const tierConfigs = resolveTierConfigs(state.config, rules.agenticScore ?? 0);
-
-    let tier = rules.tier;
-    let confidence = rules.confidence;
-    let method: "rules" | "llm" = "rules";
-    const notes: string[] = [`rules-score=${rules.score.toFixed(2)}`];
-
-    if (tier === null) {
-      const llm = await llmFallbackClassify(prompt, state.config, state);
-      notes.push(llm.note);
-      if (llm.tier) {
-        tier = llm.tier;
-        confidence = llm.confidence;
-        method = "llm";
-      } else {
-        tier = state.config.overrides.ambiguousDefaultTier;
-        confidence = Math.max(confidence, 0.5);
-        notes.push(`fallback default tier=${tier}`);
-      }
-    }
-
-    const decision = selectModel(tier, confidence, method, notes.join(" | "), tierConfigs);
-    const selected = normalizeModelRef(decision.model);
-    const tierConfig = tierConfigs[tier];
-
-    if (!state.allowedModels.has(selected)) {
-      api.logger.error(
-        `[clawhelm] Selected model "${decision.model}" is outside allowlist; suppressing override (trigger fail-closed).`,
-      );
-      return;
-    }
-
-    const resolvedSelection = resolveConfiguredModelSelection(decision.model);
-    if (!resolvedSelection) {
-      api.logger.error(
-        `[clawhelm] Selected model "${decision.model}" could not be parsed into provider/model overrides; suppressing override.`,
-      );
-      return;
-    }
-
-    const appliedFallbacks = resolveAllowedTierFallbacks(tierConfig, state.allowedModels);
-
-    api.logger.debug?.(
-      `[clawhelm] selected model=${decision.model} tier=${decision.tier} method=${decision.method} confidence=${decision.confidence.toFixed(2)} why=${JSON.stringify(decision.reasoning)} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} note=request-scoped-overrides-only`,
-    );
-
-    return {
-      providerOverride: resolvedSelection.provider,
-      modelOverride: resolvedSelection.model,
+    const logBase = {
+      event: "before_model_resolve",
+      trigger: ctx.trigger ?? null,
+      channelId: ctx.channelId ?? null,
+      sessionKey: ctx.sessionKey ?? null,
+      agentId: ctx.agentId ?? null,
+      promptPreview: prompt.slice(0, 500),
+      estimatedTokens: tokens,
     };
+
+    try {
+      const rules = classifyByRules(prompt, undefined, tokens, state.config.scoring);
+      const tierConfigs = resolveTierConfigs(state.config, rules.agenticScore ?? 0);
+
+      let tier = rules.tier;
+      let confidence = rules.confidence;
+      let method: "rules" | "llm" = "rules";
+      const notes: string[] = [`rules-score=${rules.score.toFixed(2)}`];
+
+      let llmFallback: Record<string, unknown> | null = null;
+      if (tier === null) {
+        const llm = await llmFallbackClassify(prompt, state.config, state);
+        llmFallback = llm;
+        notes.push(llm.note);
+        if (llm.tier) {
+          tier = llm.tier;
+          confidence = llm.confidence;
+          method = "llm";
+        } else {
+          tier = state.config.overrides.ambiguousDefaultTier;
+          confidence = Math.max(confidence, 0.5);
+          notes.push(`fallback default tier=${tier}`);
+        }
+      }
+
+      const decision = selectModel(tier, confidence, method, notes.join(" | "), tierConfigs);
+      const selected = normalizeModelRef(decision.model);
+      const tierConfig = tierConfigs[tier];
+      const appliedFallbacks = resolveAllowedTierFallbacks(tierConfig, state.allowedModels);
+      const resolvedSelection = resolveConfiguredModelSelection(decision.model);
+
+      const debugEntry = {
+        ...logBase,
+        rules: {
+          score: rules.score,
+          tier: rules.tier,
+          confidence: rules.confidence,
+          signals: rules.signals,
+          agenticScore: rules.agenticScore ?? null,
+          dimensions: rules.dimensions ?? [],
+        },
+        llmFallback,
+        decision,
+        selectedModelNormalized: selected,
+        allowedModels: Array.from(state.allowedModels),
+        appliedFallbacks,
+        resolvedSelection,
+        debugLogPath: state.debugLogPath,
+      };
+
+      if (!state.allowedModels.has(selected)) {
+        const message = `[clawhelm] Selected model "${decision.model}" is outside allowlist; suppressing override (trigger fail-closed).`;
+        api.logger.error(message);
+        writeDebugLog(state, api, { ...debugEntry, outcome: "blocked-allowlist", error: message });
+        return;
+      }
+
+      if (!resolvedSelection) {
+        const message = `[clawhelm] Selected model "${decision.model}" could not be parsed into provider/model overrides; suppressing override.`;
+        api.logger.error(message);
+        writeDebugLog(state, api, { ...debugEntry, outcome: "blocked-parse", error: message });
+        return;
+      }
+
+      api.logger.debug?.(
+        `[clawhelm] selected model=${decision.model} tier=${decision.tier} method=${decision.method} confidence=${decision.confidence.toFixed(2)} why=${JSON.stringify(decision.reasoning)} provider=${resolvedSelection.provider} modelId=${resolvedSelection.model} fallbacks=${appliedFallbacks.join(",") || "none"} note=request-scoped-overrides-only`,
+      );
+
+      writeDebugLog(state, api, {
+        ...debugEntry,
+        outcome: "override-applied",
+        providerOverride: resolvedSelection.provider,
+        modelOverride: resolvedSelection.model,
+      });
+
+      return {
+        providerOverride: resolvedSelection.provider,
+        modelOverride: resolvedSelection.model,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      api.logger.error(`[clawhelm] before_model_resolve failed: ${message}`);
+      writeDebugLog(state, api, { ...logBase, outcome: "handler-error", error: message });
+      return;
+    }
   };
 }

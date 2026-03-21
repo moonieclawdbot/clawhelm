@@ -121,6 +121,8 @@ ClawHelm plugin config lives under:
 - Every model used in `plugins.clawhelm.routing.*` must be available to OpenClaw (built-in catalog model or custom `models.providers.<providerId>.models`).
 - Optional: set `plugins.clawhelm.routing.agenticTiers` for agentic workflows.
 - Optional: set `plugins.clawhelm.routing.allowedModels` to enforce a strict explicit allowlist.
+- Optional: set `plugins.clawhelm.routing.debug.enabled=true` to persist routing decisions to disk as JSONL.
+- Optional: set `plugins.clawhelm.routing.debug.logPath` to control where debug logs are written. Default: `.openclaw/logs/clawhelm-debug.jsonl` resolved from the plugin install path.
 - Tier fallbacks remain part of ClawHelm's routing metadata/logging; they are not written back into persisted OpenClaw defaults.
 - ClawHelm normalizes model refs (`trim + lowercase`) for allowlist checks.
 - In custom provider model entries, `cost` is optional in OpenClaw. It is shown explicitly in the example for usage/cost observability.
