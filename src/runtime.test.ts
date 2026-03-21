@@ -313,6 +313,38 @@ describe("runtime routing", () => {
     expect(result?.modelOverride).toBe("gpt-5.3-codex");
   });
 
+  it("classifies using the extracted user prompt instead of metadata wrapper text", async () => {
+    const api = makeApi(makeBaseConfig(), {
+      routing: {
+        tiers: {
+          SIMPLE: { primary: "openai/gpt-4o-mini", fallback: [] },
+          MEDIUM: { primary: "openai/gpt-5.3-codex", fallback: [] },
+          COMPLEX: { primary: "openai/gpt-5.3-codex", fallback: [] },
+          REASONING: { primary: "openai/gpt-5.3-codex", fallback: [] },
+        },
+      },
+    });
+
+    const state = buildRuntimeState(api);
+    const handler = createBeforeModelResolveHandler(state, api);
+    const wrappedPrompt = `Conversation info (untrusted metadata):
+\`\`\`json
+{"message_id":"2176"}
+\`\`\`
+
+Sender (untrusted metadata):
+\`\`\`json
+{"name":"Alessandro"}
+\`\`\`
+
+What is the capital of Italy? Answer with one word.`;
+
+    const result = await handler({ prompt: wrappedPrompt }, { trigger: "user" });
+
+    expect(result?.providerOverride).toBe("openai");
+    expect(result?.modelOverride).toBe("gpt-4o-mini");
+  });
+
   it("uses LLM fallback when local classifier is ambiguous", async () => {
     const api = makeApi(makeBaseConfig(), {
       routing: {
@@ -344,6 +376,9 @@ describe("runtime routing", () => {
     const result = await handler({ prompt: "neutral prompt" }, { trigger: "heartbeat" });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { model: string };
+    expect(body.model).toBe("gpt-4o-mini");
     expect(result?.providerOverride).toBe("openai");
     expect(result?.modelOverride).toBe("gpt-5.3-codex");
     vi.unstubAllGlobals();
@@ -383,6 +418,9 @@ describe("runtime routing", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { model: string };
+    expect(body.model).toBe("gpt-4o-mini");
     expect(result?.providerOverride).toBe("openai");
     expect(result?.modelOverride).toBe("gpt-5.3-codex");
     expect(api.logger.debug).toHaveBeenCalledWith(

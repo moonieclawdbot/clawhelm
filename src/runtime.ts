@@ -2,6 +2,7 @@ import { mkdirSync, appendFileSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_ROUTING_CONFIG } from "./router/config.js";
 import { classifyByLLM } from "./router/llm-classifier.js";
+import { extractUserPrompt } from "./router/prompt.js";
 import { classifyByRules } from "./router/rules.js";
 import { selectModel } from "./router/selector.js";
 import type { RoutingConfig, Tier, TierConfig } from "./router/types.js";
@@ -12,6 +13,12 @@ type AgentContext = { trigger?: string; channelId?: string; sessionKey?: string;
 type BeforeModelResolveResult = {
   providerOverride?: string;
   modelOverride?: string;
+};
+
+type ResolvedProviderModel = {
+  configuredModel: string;
+  providerModel: string;
+  source: string;
 };
 
 type RuntimeState = {
@@ -166,10 +173,15 @@ function resolveTierConfigs(config: RoutingConfig, agenticScore: number): Record
   return useAgentic ? config.agenticTiers! : config.tiers;
 }
 
+function resolveProviderModel(modelRef: string): string | null {
+  const resolved = resolveConfiguredModelSelection(modelRef);
+  return resolved?.model ?? null;
+}
+
 function resolveFallbackClassifierModel(
   config: RoutingConfig,
   state: RuntimeState,
-): { model: string; source: string } | null {
+): ResolvedProviderModel | null {
   const candidates = [
     { model: normalizeModelRef(config.classifier.llmModel), source: "configured classifier" },
     { model: normalizeModelRef(config.tiers.SIMPLE.primary), source: "SIMPLE tier primary" },
@@ -202,15 +214,17 @@ function resolveFallbackClassifierModel(
   for (const candidate of candidates) {
     if (!candidate.model || !state.allowedModels.has(candidate.model)) continue;
     const provider = state.providerByModel.get(candidate.model);
-    if (provider?.baseUrl && provider.apiKey) {
-      return candidate;
+    const providerModel = resolveProviderModel(candidate.model);
+    if (provider?.baseUrl && provider.apiKey && providerModel) {
+      return { configuredModel: candidate.model, providerModel, source: candidate.source };
     }
   }
 
   for (const model of state.allowedModels) {
     const provider = state.providerByModel.get(model);
-    if (provider?.baseUrl && provider.apiKey) {
-      return { model, source: "first allowed model with credentials" };
+    const providerModel = resolveProviderModel(model);
+    if (provider?.baseUrl && provider.apiKey && providerModel) {
+      return { configuredModel: model, providerModel, source: "first allowed model with credentials" };
     }
   }
 
@@ -232,7 +246,7 @@ async function llmFallbackClassify(
     };
   }
 
-  const provider = state.providerByModel.get(classifier.model);
+  const provider = state.providerByModel.get(classifier.configuredModel);
   if (!provider?.baseUrl || !provider.apiKey) {
     return {
       tier: null,
@@ -245,7 +259,8 @@ async function llmFallbackClassify(
   const result = await classifyByLLM(
     prompt,
     {
-      model: classifier.model,
+      model: classifier.configuredModel,
+      providerModel: classifier.providerModel,
       maxTokens: config.classifier.llmMaxTokens,
       temperature: config.classifier.llmTemperature,
       truncationChars: config.classifier.promptTruncationChars,
@@ -269,8 +284,8 @@ async function llmFallbackClassify(
     method: "llm",
     confidence: result.confidence,
     note: result.tier
-      ? `LLM fallback classification via ${classifier.model} (${classifier.source})`
-      : `LLM fallback unavailable via ${classifier.model} (${classifier.source})`,
+      ? `LLM fallback classification via ${classifier.configuredModel} (${classifier.source})`
+      : `LLM fallback unavailable via ${classifier.configuredModel} (${classifier.source})`,
   };
 }
 
@@ -325,19 +340,23 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
     ctx: AgentContext,
   ): Promise<BeforeModelResolveResult | void> => {
     const prompt = event.prompt ?? "";
-    const tokens = estimateTokens(prompt);
+    const promptForClassification = extractUserPrompt(prompt);
+    const tokens = estimateTokens(promptForClassification);
+    const promptWasSanitized = promptForClassification !== prompt;
     const logBase = {
       event: "before_model_resolve",
       trigger: ctx.trigger ?? null,
       channelId: ctx.channelId ?? null,
       sessionKey: ctx.sessionKey ?? null,
       agentId: ctx.agentId ?? null,
-      promptPreview: prompt.slice(0, 500),
+      promptPreview: promptForClassification.slice(0, 500),
+      rawPromptPreview: prompt.slice(0, 500),
+      promptWasSanitized,
       estimatedTokens: tokens,
     };
 
     try {
-      const rules = classifyByRules(prompt, undefined, tokens, state.config.scoring);
+      const rules = classifyByRules(promptForClassification, undefined, tokens, state.config.scoring);
       const tierConfigs = resolveTierConfigs(state.config, rules.agenticScore ?? 0);
 
       let tier = rules.tier;
@@ -347,7 +366,7 @@ export function createBeforeModelResolveHandler(state: RuntimeState, api: OpenCl
 
       let llmFallback: Record<string, unknown> | null = null;
       if (tier === null) {
-        const llm = await llmFallbackClassify(prompt, state.config, state);
+        const llm = await llmFallbackClassify(promptForClassification, state.config, state);
         llmFallback = llm;
         notes.push(llm.note);
         if (llm.tier) {

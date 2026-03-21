@@ -21,6 +21,7 @@ const cache = new Map<string, { tier: Tier; expires: number }>();
 
 export type LLMClassifierConfig = {
   model: string;
+  providerModel?: string;
   maxTokens: number;
   temperature: number;
   truncationChars: number;
@@ -53,7 +54,7 @@ export async function classifyByLLM(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: config.model,
+        model: config.providerModel ?? config.model,
         messages: [
           { role: "system", content: CLASSIFIER_PROMPT },
           { role: "user", content: truncated },
