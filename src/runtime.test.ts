@@ -376,7 +376,8 @@ What is the capital of Italy? Answer with one word.`;
     const result = await handler({ prompt: "neutral prompt" }, { trigger: "heartbeat" });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toBe("https://api.openai.com/v1/chat/completions");
     const body = JSON.parse(String(init.body)) as { model: string };
     expect(body.model).toBe("gpt-4o-mini");
     expect(result?.providerOverride).toBe("openai");
@@ -418,7 +419,8 @@ What is the capital of Italy? Answer with one word.`;
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toBe("https://api.openai.com/v1/chat/completions");
     const body = JSON.parse(String(init.body)) as { model: string };
     expect(body.model).toBe("gpt-4o-mini");
     expect(result?.providerOverride).toBe("openai");

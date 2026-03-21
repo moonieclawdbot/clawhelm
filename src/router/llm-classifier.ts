@@ -30,6 +30,13 @@ export type LLMClassifierConfig = {
 
 type PayFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+function resolveChatCompletionsUrl(apiBase: string): string {
+  const base = apiBase.replace(/\/+$/, "");
+  // If the provider baseUrl already includes /v1, don't double-append.
+  if (/\/v1$/i.test(base)) return `${base}/chat/completions`;
+  return `${base}/v1/chat/completions`;
+}
+
 /**
  * Classify a prompt using the configured classifier LLM.
  * Returns null tier when unavailable/invalid so callers can apply explicit fallback policy.
@@ -50,7 +57,7 @@ export async function classifyByLLM(
   }
 
   try {
-    const response = await payFetch(`${apiBase}/v1/chat/completions`, {
+    const response = await payFetch(resolveChatCompletionsUrl(apiBase), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
